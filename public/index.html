@@ -19,20 +19,21 @@
     </div>
     <div id="homeMoon" aria-hidden="true"></div>
     <div id="joinBox" class="home">
-      <div id="homeRaces" class="homeRaces"></div>
-      <label class="homeName"><span>Commander name</span><input id="name" maxlength="20" placeholder="Commander"></label>
       <div class="homeChoices">
-        <button id="createBtn" class="choice play"><canvas id="playArt" width="360" height="200"></canvas><span class="cTag">MULTIPLAYER</span><b>Play</b><small>Pick your race, add computers or invite friends with a room code.</small></button>
-        <button id="watchBtn" class="choice ai"><canvas id="aiArt" width="360" height="200"></canvas><span class="cTag">SPECTATOR</span><b>AI Game</b><small>Choose 2 to 4 computer races and watch them fight for the moon.</small></button>
+        <div class="choice play"><canvas id="playArt" width="360" height="200"></canvas><span class="cTag">NEW GAME</span><b>Play</b><small>Start a room, choose who plays each race (you, a friend on this PC, or the computer) and launch.</small>
+      <div class="homeName inCard"><label for="name">Your commander name</label><div class="nameRow"><svg class="pen" viewBox="0 0 24 24" width="18" height="18"><path d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><input id="name" maxlength="20" placeholder="Type your name…"><button id="diceBtn" type="button" title="Random name"><svg viewBox="0 0 24 24" width="22" height="22"><rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/><circle cx="16" cy="8" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="8" cy="16" r="1.6" fill="currentColor"/><circle cx="16" cy="16" r="1.6" fill="currentColor"/></svg></button></div><small>Click the dice for a random name</small></div>
+          <div class="joinRow"><button id="createBtn" class="primary">Create game</button></div></div>
+        <div class="choice join"><canvas id="joinArt" width="360" height="200"></canvas><span class="cTag">ROOM CODE</span><b>Join</b><small>Got a code from a friend? Enter it and join their room.</small>
+          <div class="joinRow"><input id="codeIn" maxlength="4" placeholder="ABCD"><button id="joinBtn">Join</button></div></div>
       </div>
-      <div class="homeJoin"><span>Got a room code?</span><input id="codeIn" maxlength="4" placeholder="ABCD"><button id="joinBtn">Join</button></div>
+      <button id="watchBtn" class="hidden">AI game</button>
     </div>
     <div id="roomBox" class="card hidden">
       <button id="leaveRoomBtn" class="ghost" title="Leave this room and go back to the start screen">&larr; Back</button>
-      <div class="roomcode">Room code <b id="roomCode"></b><small>Share this code with your friends</small></div>
+      <div class="roomcode">Room code <b id="roomCode"></b><button id="copyCode" title="Copy the room code"><svg viewBox="0 0 24 24" width="16" height="16"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Copy</span></button><small>Share this code with your friends</small></div>
       <div class="lobbyGrid">
         <div class="lobbyLeft">
-      <h3 class="step"><span>1</span> Choose your race</h3>
+      <h3 class="step"><span>1</span> Who plays each race?</h3>
       <div id="raceList" class="races"></div>
       <div id="colorList" class="hidden"></div>
       <h3 class="step"><span>2</span> Who plays?</h3>
@@ -40,6 +41,7 @@
       <div id="slots" class="slots"></div>
       <ul id="lobbyPlayers" class="hidden"></ul>
       <button id="botBtn" class="hidden">+ Add computer player</button>
+      <div id="vsBar"></div>
       <button id="startBtn" class="primary">Launch the colonization</button>
         </div>
       <div id="raceProfile"></div>
@@ -88,7 +90,7 @@
       <h4>Controls</h4>
       <ul>
         <li><b>Scroll</b> zoom &middot; <b>drag</b> move &middot; <b>double-click</b> reset view</li>
-        <li><b>R</b>, <b>arrows</b>, <b>WASD</b> or <b>right-click</b> rotate the piece</li>
+        <li><b>WASD</b> move over the map &middot; <b>R</b>, <b>arrows</b> or <b>right-click</b> rotate the piece</li>
         <li><b>Q / E</b> or <b>middle-drag</b> turn the camera (3D) &middot; <b>2D / 3D</b> button switches view</li>
         <li><b>← Lobby</b> leaves the game; you can jump back in from the lobby.</li>
       </ul>

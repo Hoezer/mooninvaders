@@ -24,7 +24,7 @@
     emit(o) { setTimeout(() => this.onmessage && this.onmessage({ data: JSON.stringify(o) }), 0); }
     broadcast() {
       const g = this.game; if (!g) return;
-      this.emit({ t: 'state', state: g.view(this.idx) });
+      this.emit({ t: 'state', state: g.view(this.idx >= 0 ? g.actor(this.idx) : this.idx) });
       if (g.botTimer || g.status !== 'playing' || !g.players[g.turn].bot) return;
       g.botTimer = setTimeout(() => {
         g.botTimer = null;
@@ -51,6 +51,8 @@
           const code = m.t === 'create' ? newCode() : String(m.code).toUpperCase();
           if (m.t === 'create') games.set(code, new Game(code));
           const g = games.get(code), idx = g.join(m.name);
+          if (m.t === 'create') { const all = Object.keys(MI.RACES); g.pick(idx, all[Math.floor(Math.random() * all.length)]); }
+          if (m.t === 'create') { const free = Object.keys(MI.RACES).filter((r) => !g.players.some((p) => p.race === r)); g.addBot(0, free[Math.floor(Math.random() * free.length)]); }
           this.game = g; this.idx = idx;
           this.emit({ t: 'joined', code, token: g.players[idx].token });
           return this.broadcast();
@@ -63,15 +65,18 @@
           this.game = g; this.idx = idx; this.emit({ t: 'joined', code: g.code, token: m.token });
           return this.broadcast();
         }
-        const g = this.game, idx = this.idx;
+        const g = this.game, idx = g ? g.actor(this.idx) : this.idx;
         if (!g) throw new Error('Join a game first');
         switch (m.t) {
           case 'pick': g.pick(idx, m.race, m.color); break;
           case 'start': if (g.start(idx)) { this.idx = -1; this.emit({ t: 'joined', code: g.code, token: g.specToken }); } break;
           case 'watch': g.watch(idx, !!m.on); break;
           case 'addBot': g.addBot(idx, m.race); break;
+          case 'addLocal': g.addLocal(idx, m.race, m.name); break;
+          case 'rename': g.rename(idx, m.idx | 0, m.name); break;
           case 'finishNow': if (idx > 0) throw new Error('Only the host can end the game'); g.finish('Ended early by the host.'); break;
           case 'speed': if (idx > 0) throw new Error('Only the host can change the speed'); g.botDelay = Math.max(40, Math.min(2000, m.ms | 0)); break;
+          case 'leave': if (g.status === 'lobby' && idx > 0) g.players.splice(idx, 1); this.game = null; return;
           case 'removeBot': g.removeBot(idx, m.idx | 0); break;
           case 'place': g.place(idx, m.uid, m.x, m.y, m.rot); break;
           case 'store': g.store(idx, m.uid); break;

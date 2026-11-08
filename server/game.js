@@ -58,7 +58,10 @@ class Game {
     if (i !== 0 || this.status !== 'lobby') throw new Error('Only the host can do that in the lobby');
     const p = this.players[0];
     if (on) {
-      if (this.players.some((q, j) => j !== 0 && !q.bot)) throw new Error('Watch mode is only possible when no other people joined');
+      if (this.players.some((q, j) => j !== 0 && !q.bot && !q.local)) throw new Error('Watch mode is only possible when no other people joined online');
+      // another human plays on this PC: the host simply takes over that seat instead of watching
+      const L = this.players.findIndex((q) => q.local);
+      if (L >= 0) { const q = this.players[L]; p.race = q.race; p.color = q.color; p.name = q.name; this.players.splice(L, 1); return; }
       p.watch = true; p.race = null; p.color = null;
     } else if (p.watch) {
       p.watch = false;
@@ -67,9 +70,32 @@ class Game {
     }
   }
 
+  // a second human playing on the host's device (hot seat)
+  rename(i, idx, name) {
+    const p = this.players[idx];
+    if (!p || this.status !== 'lobby') throw new Error('Not allowed');
+    if (idx !== i && !(i === 0 && p.local)) throw new Error('You can only rename yourself');
+    p.name = String(name || '').trim().slice(0, 20) || p.name;
+  }
+
+  addLocal(i, wanted, name) {
+    if (i !== 0) throw new Error('Only the host can add players');
+    if (wanted && this.players.some((p) => p.race === wanted)) throw new Error('That race is already playing');
+    const race = wanted && RACES[wanted] ? wanted : Object.keys(RACES).find((r) => !this.players.some((p) => p.race === r));
+    const n = this.players.filter((p) => !p.bot && !p.watch).length + 1;
+    const idx = this.join(String(name || '').trim().slice(0, 20) || 'Player ' + n);
+    Object.assign(this.players[idx], { race, color: RACE_COLOR[race] || this.players[idx].color, local: true });
+  }
+
+  // the device that controls player i also controls the local players while it is their turn
+  actor(idx) {
+    const cur = this.players[this.turn];
+    return this.status === 'playing' && idx === 0 && cur && cur.local ? this.turn : idx;
+  }
+
   removeBot(i, idx) {
     if (i !== 0 || this.status !== 'lobby') throw new Error('Not allowed');
-    if (!this.players[idx] || !this.players[idx].bot) throw new Error('Not a computer player');
+    if (!this.players[idx] || idx === 0) throw new Error('Not allowed');
     this.players.splice(idx, 1);
   }
 
@@ -263,7 +289,6 @@ class Game {
 
   place(i, uid, x, y, rot) {
     const p = this.me(i);
-    if (this.phase !== 'build') throw new Error('You can only build in the build phase');
     const item = p.pad.find((q) => q.uid === uid);
     if (!item) throw new Error('Piece not on your landing pad');
     rot = ((rot | 0) % 4 + 4) % 4;
@@ -278,14 +303,12 @@ class Game {
 
   store(i, uid) {
     const p = this.me(i);
-    if (this.phase !== 'build') throw new Error('Only in the build phase');
     if (p.storage.length >= R.storageCapacity(this, i)) throw new Error('No free storage (build a Small Storage)');
     p.storage.push(this.takeFrom(p.pad, uid));
   }
 
   retrieve(i, uid) {
     const p = this.me(i);
-    if (this.phase !== 'build') throw new Error('Only in the build phase');
     p.pad.push(this.takeFrom(p.storage, uid));
   }
 
@@ -297,13 +320,13 @@ class Game {
     if (R.legalSpots(this, i, item.type, 1).length) throw new Error('This piece still fits somewhere: you must build it');
     if (p.storage.length < R.storageCapacity(this, i)) throw new Error('You still have room in storage');
     this.takeFrom(p.pad, uid);
-    this.addLog(`${p.name}'s ${PIECES[item.type].name} drifted off into space.`);
+    this.addLog(`${p.name} scrapped ${PIECES[item.type].name}.`);
   }
 
   doneBuild(i) {
     const p = this.me(i);
-    if (this.phase !== 'build') throw new Error('Not in the build phase');
-    if (p.pad.length) throw new Error('Build, store or discard every landed piece first');
+    // drawing, building and ordering may be mixed; capsules can be drawn once per turn
+    if (this.phase !== 'build') throw new Error('You already drew capsules this turn');
     const roll = 1 + Math.floor(Math.random() * 4);
     const gain = 1 + roll + RACES[p.race].extraCapsules;
     p.capsules += gain;
@@ -314,7 +337,6 @@ class Game {
 
   order(i, type) {
     const p = this.me(i);
-    if (this.phase !== 'order') throw new Error('Not in the order phase');
     const d = PIECES[type];
     if (!d || !(p.supply[type] > 0)) throw new Error('None left of that piece');
     if (p.capsules < d.cost) throw new Error('Not enough capsules');
@@ -324,14 +346,14 @@ class Game {
 
   cancelOrder(i, uid) {
     const p = this.me(i);
-    if (this.phase !== 'order') throw new Error('Not in the order phase');
     const o = this.takeFrom(p.orders, uid);
     p.capsules += PIECES[o.type].cost; p.supply[o.type]++;
   }
 
   endTurn(i) {
     const p = this.me(i);
-    if (this.phase !== 'order') throw new Error('Finish building first');
+    if (this.phase !== 'order') throw new Error('Draw your capsules first');
+    if (p.pad.length) throw new Error('Build, store or scrap every landed piece first');
     if (p.orders.length) this.addLog(`${p.name} ordered ${p.orders.length} piece(s).`);
     p.incoming = p.orders; p.orders = [];
     this.turn = (this.turn + 1) % this.players.length;
@@ -367,7 +389,7 @@ class Game {
       turn: this.turn, firstTurn: this.firstTurn || 0, round: this.round, phase: this.phase, lastRoll: this.lastRoll, log: this.log,
       scores,
       players: this.players.map((p, idx) => ({
-        name: p.name, race: p.race, color: p.color, watch: !!p.watch, capsules: p.capsules, connected: p.connected, bot: !!p.bot,
+        name: p.name, race: p.race, color: p.color, watch: !!p.watch, local: !!p.local, capsules: p.capsules, connected: p.connected, bot: !!p.bot,
         storageCap: this.status === 'lobby' ? 0 : R.storageCapacity(this, idx),
         // other players' requests are only shown face down: the puzzle shape, not the building
         ...(forIdx === idx || forIdx < 0

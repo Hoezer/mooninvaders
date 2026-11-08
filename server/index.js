@@ -35,7 +35,7 @@ function newCode() {
 function broadcast(game) {
   scheduleBot(game);
   for (const [ws, s] of sockets) if (s.game === game && ws.readyState === 1) {
-    ws.send(JSON.stringify({ t: 'state', state: game.view(s.idx) }));
+    ws.send(JSON.stringify({ t: 'state', state: game.view(s.idx >= 0 ? game.actor(s.idx) : s.idx) }));
   }
 }
 
@@ -73,6 +73,9 @@ wss.on('connection', (ws) => {
         if (!game) throw new Error('Room not found');
         if (m.t === 'join' && game.players[0] && game.players[0].watch) throw new Error('This room is set up as an AI game to watch');
         const idx = game.join(m.name);
+        // a new room starts as you against the computer: every other race is a computer player
+        if (m.t === 'create') { const all = Object.keys(require('../shared/races').RACES); game.pick(idx, all[Math.floor(Math.random() * all.length)]); }
+        if (m.t === 'create') { const free = Object.keys(require('../shared/races').RACES).filter((r) => !game.players.some((p) => p.race === r)); game.addBot(0, free[Math.floor(Math.random() * free.length)]); }
         sockets.set(ws, { game, idx });
         ws.send(JSON.stringify({ t: 'joined', code, token: game.players[idx].token }));
         return broadcast(game);
@@ -92,12 +95,14 @@ wss.on('connection', (ws) => {
         return broadcast(game);
       }
       if (!s) throw new Error('Join a game first');
-      const { game, idx } = s;
+      const { game } = s; const idx = game.actor(s.idx);
       switch (m.t) {
         case 'pick': game.pick(idx, m.race, m.color); break;
         case 'start': if (game.start(idx)) { sockets.set(ws, { game, idx: -1 }); ws.send(JSON.stringify({ t: 'joined', code: game.code, token: game.specToken })); } break;
         case 'watch': game.watch(idx, !!m.on); break;
         case 'addBot': game.addBot(idx, m.race); break;
+        case 'addLocal': game.addLocal(idx, m.race, m.name); break;
+        case 'rename': game.rename(idx, m.idx | 0, m.name); break;
         case 'finishNow':
           if (idx > 0) throw new Error('Only the host can end the game');
           if (game.status !== 'playing') throw new Error('Game is not running');
@@ -105,7 +110,19 @@ wss.on('connection', (ws) => {
         case 'speed':
           if (idx > 0) throw new Error('Only the host can change the speed');
           game.botDelay = Math.max(40, Math.min(2000, m.ms | 0)); break;
-        case 'removeBot': game.removeBot(idx, m.idx | 0); break;
+        case 'leave':
+          if (game.status === 'lobby' && idx > 0) { game.players.splice(idx, 1); for (const [w2, s2] of sockets) if (s2.game === game && s2.idx > idx) s2.idx--; }
+          sockets.delete(ws); broadcast(game); return;
+        case 'removeBot': {
+          const k = m.idx | 0; game.removeBot(idx, k);
+          // keep every connection pointing at the right seat; the removed online player goes back to the start
+          for (const [w2, s2] of sockets) {
+            if (s2.game !== game) continue;
+            if (s2.idx === k) { sockets.delete(w2); if (w2.readyState === 1) w2.send(JSON.stringify({ t: 'kicked' })); }
+            else if (s2.idx > k) s2.idx--;
+          }
+          break;
+        }
         case 'place': game.place(idx, m.uid, m.x, m.y, m.rot); break;
         case 'store': game.store(idx, m.uid); break;
         case 'retrieve': game.retrieve(idx, m.uid); break;
@@ -126,7 +143,7 @@ wss.on('connection', (ws) => {
     sockets.delete(ws);
     if (!s) return;
     const still = [...sockets.values()].some((o) => o.game === s.game && o.idx === s.idx);
-    if (!still && s.idx >= 0) s.game.players[s.idx].connected = false;
+    if (!still && s.idx >= 0 && s.game.players[s.idx]) s.game.players[s.idx].connected = false;
     if (![...sockets.values()].some((o) => o.game === s.game)) {
       setTimeout(() => { if (![...sockets.values()].some((o) => o.game === s.game)) games.delete(s.game.code); }, 30 * 60 * 1000);
     }

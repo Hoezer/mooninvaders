@@ -901,7 +901,30 @@ function addEffects(group, st, p, race, on) {
   }
 }
 
+// faint grid of the buildable cells, with a slightly brighter outline where the board ends
+let gridGroup = null, gridKey = '';
+function buildGrid(st) {
+  const key = st.w + 'x' + st.h + '|' + st.mask.join('');
+  if (key === gridKey) return; gridKey = key;
+  if (gridGroup) scene.remove(gridGroup);
+  const inner = [], edge = [];
+  const on = (x, y) => x >= 0 && y >= 0 && x < st.w && y < st.h && st.mask[y * st.w + x];
+  const X = (x) => x - st.w / 2, Z = (y) => y - st.h / 2;
+  for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
+    if (!on(x, y)) continue;
+    // top and left edges of every cell; right/bottom only on the border
+    const segs = [[x, y, x + 1, y, on(x, y - 1)], [x, y, x, y + 1, on(x - 1, y)]];
+    if (!on(x + 1, y)) segs.push([x + 1, y, x + 1, y + 1, false]);
+    if (!on(x, y + 1)) segs.push([x, y + 1, x + 1, y + 1, false]);
+    for (const [x1, y1, x2, y2, shared] of segs) (shared ? inner : edge).push(X(x1), 0.008, Z(y1), X(x2), 0.008, Z(y2));
+  }
+  gridGroup = new THREE.Group();
+  const mk = (arr, op) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: op, depthWrite: false })); };
+  gridGroup.add(mk(inner, 0.07), mk(edge, 0.35));
+  scene.add(gridGroup);
+}
 function rebuild(st) {
+  buildGrid(st);
   while (root.children.length) root.remove(root.children[0]);
   anims.length = 0; spinQueue.length = 0;
   const grid = new Map();
@@ -973,7 +996,9 @@ function addFitMarkers(st, p, group) {
   }
 }
 
+let lastSt = null;
 function update(st, ghost) {
+  lastSt = st;
   if (!renderer) return;
   W = st.w; H = st.h;
   const sig = st.placed.map((p) => p.id + ':' + p.type + ':' + p.x + ':' + p.y + ':' + p.rot + ':' + p.owner).join('|') + '#' + st.scores.power.map((p) => p.powered.length).join(',') + '#' + st.scores.details.map((d) => d.total).join(',');
@@ -1021,6 +1046,54 @@ function flyStep(t) {
 function setVisible(v) { if (renderer) renderer.domElement.style.display = v ? 'block' : 'none'; }
 
 function setFlat(v) { flat = !!v; }
+// light up a set of buildings (power hover)
+let markGroup = null;
+function markIds(ids, color, labels) {
+  if (markGroup) { scene.remove(markGroup); markGroup = null; }
+  if (!ids || !ids.length || !lastSt) return;
+  markGroup = new THREE.Group();
+  const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4, depthWrite: false });
+  const hex = '#' + new THREE.Color(color).getHexString();
+  for (const p of lastSt.placed) {
+    if (!ids.includes(p.id)) continue;
+    const cells = MI.absCells(p.type, p.x, p.y, p.rot);
+    for (const k of cells) { const t = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.96), m); t.rotation.x = -Math.PI / 2; t.position.set(k.x - W / 2 + 0.5, 0.02, k.y - H / 2 + 0.5); markGroup.add(t); }
+    // one stick per building with its value on a tag at the top
+    const cx = cells.reduce((a, k) => a + k.x, 0) / cells.length - W / 2 + 0.5, cz = cells.reduce((a, k) => a + k.y, 0) / cells.length - H / 2 + 0.5;
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.1, 6), new THREE.MeshBasicMaterial({ color })); stick.position.set(cx, 0.55, cz); markGroup.add(stick);
+    const txt = labels && labels[p.id] != null ? String(labels[p.id]) : '';
+    if (txt) {
+      const cv = document.createElement('canvas'); cv.width = 160; cv.height = 72; const c = cv.getContext('2d');
+      c.fillStyle = hex; c.beginPath(); c.roundRect(4, 4, 152, 64, 18); c.fill();
+      c.fillStyle = '#111'; c.font = '900 40px Orbitron, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(txt, 80, 38);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false }));
+      sp.scale.set(0.62, 0.28, 1); sp.position.set(cx, 1.22, cz); sp.renderOrder = 20; markGroup.add(sp);
+    }
+  }
+  scene.add(markGroup);
+}
+
+// green markers on every cell where the selected piece fits (any rotation)
+let spotGroup = null, spotSig = '';
+function setSpots(list) {
+  const sig = list ? list.map((s) => s.x + ',' + s.y).join(';') : '';
+  if (sig === spotSig) return; spotSig = sig;
+  if (spotGroup) { scene.remove(spotGroup); spotGroup = null; }
+  if (!list || !list.length) return;
+  spotGroup = new THREE.Group();
+  const fill = new THREE.MeshBasicMaterial({ color: 0x3cf096, transparent: true, opacity: 0.22, depthWrite: false });
+  const ring = new THREE.MeshBasicMaterial({ color: 0x3cf096, transparent: true, opacity: 0.85 });
+  const seen = new Set();
+  for (const s of list) {
+    const k = s.x + ',' + s.y; if (seen.has(k)) continue; seen.add(k);
+    const x = s.x - W / 2 + 0.5, z = s.y - H / 2 + 0.5;
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.86), fill); t.rotation.x = -Math.PI / 2; t.position.set(x, 0.03, z); spotGroup.add(t);
+    const o = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.36, 32), ring); o.rotation.x = -Math.PI / 2; o.position.set(x, 0.035, z); spotGroup.add(o);
+  }
+  scene.add(spotGroup);
+  const t0 = performance.now();
+  anims.push((t) => { if (spotGroup) fill.opacity = 0.15 + 0.12 * Math.sin((t - t0) / 300); });
+}
 
 // score links: from a facility to every guest room that counts for its points
 let linkGroup = null, linkId = null, linkSig = '';
@@ -1109,11 +1182,11 @@ function renderSnap(g, wPx, hPx) {
   snapR.setSize(wPx, hPx, false); snapCam.aspect = wPx / hPx; snapCam.updateProjectionMatrix();
   // a small disc of moon ground under it
   const box = new THREE.Box3().setFromObject(g), ctr = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(Math.max(size.x, size.z) * 0.7, 48), new THREE.MeshStandardMaterial({ color: 0x45464b, roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(Math.max(size.x, size.z) * 0.52, 48), new THREE.MeshStandardMaterial({ color: 0x45464b, roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.position.set(ctr.x, 0, ctr.z);
   snapScene.add(g, ground);
-  const r = Math.max(size.x, size.z) * 0.95 + 0.3;
-  snapCam.position.set(ctr.x + r * 0.55, r * 1.05, ctr.z + r * 1.15); snapCam.lookAt(ctr.x, 0.08, ctr.z);
+  const r = Math.max(size.x, size.z) * 0.62 + 0.12;
+  snapCam.position.set(ctr.x + r * 0.35, r * 1.35, ctr.z + r * 0.9); snapCam.lookAt(ctr.x, 0.05, ctr.z);
   snapR.render(snapScene, snapCam);
   snapScene.remove(g, ground);
   const out = document.createElement('canvas'); out.width = snapR.domElement.width; out.height = snapR.domElement.height;
@@ -1137,5 +1210,5 @@ function snapshotType(type, race, rot = 0, wPx = 96, hPx = 80) {
   typeSnapCache.set(key, out);
   return out;
 }
-window.Render3D = { intro, snapshotType, showScore, highlight, snapshot, setFlat, init, update, pick, zoom, pan, orbit, reset, setVisible, resize };
+window.Render3D = { markIds, setSpots, intro, snapshotType, showScore, highlight, snapshot, setFlat, init, update, pick, zoom, pan, orbit, reset, setVisible, resize };
 window.dispatchEvent(new Event('render3d-ready'));
