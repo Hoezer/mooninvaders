@@ -53,6 +53,7 @@
     if (t.id === 'newAiBtn' || t.id === 'endNewAi') watchAi();
     if (t.dataset.speed) send({ t: 'speed', ms: +t.dataset.speed });
     if (t.dataset.finish) send({ t: 'finishNow' });
+    if (t.id === 'leaveRoomBtn') { store('mi_session', null); store('mi_last', null); location.href = location.pathname; }
     if (t.id === 'endLobby') { store('mi_session', null); location.href = location.pathname; }
     if (t.id === 'backBtn') { const s = load('mi_session'); if (s) store('mi_last', s); store('mi_session', null); location.href = location.pathname; }
     if (t.id === 'resumeBtn') { store('mi_session', load('mi_last')); store('mi_last', null); location.reload(); }

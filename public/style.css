@@ -423,3 +423,6 @@ body.inRoom .roomcode b { font-size: 26px; }
 .lobbyLeft .race:not(.sel) { filter: grayscale(.75) brightness(.7); opacity: .8; transition: filter .2s, opacity .2s, transform .2s; }
 .lobbyLeft .race:not(.sel):not(.taken):hover { filter: none; opacity: 1; }
 .lobbyLeft .race.taken { filter: grayscale(1) brightness(.55); opacity: .65; }
+#roomBox { position: relative; }
+#leaveRoomBtn { position: absolute; top: 12px; left: 16px; padding: 6px 14px; font-size: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(60,240,150,.3); }
+#leaveRoomBtn:hover { border-color: #3cf096; background: rgba(60,240,150,.1); }
