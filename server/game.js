@@ -30,7 +30,7 @@ class Game {
 
   join(name) {
     if (this.status !== 'lobby') throw new Error('Game already started');
-    if (this.players.length >= MAX_PLAYERS) throw new Error('Room is full');
+    if (this.players.filter((p) => !p.watch).length >= MAX_PLAYERS) throw new Error('Room is full');
     const race = Object.keys(RACES).find((r) => !this.players.some((p) => p.race === r));
     const color = RACE_COLOR[race] || Object.keys(COLORS).find((c) => !this.players.some((p) => p.color === c));
     const p = {

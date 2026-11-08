@@ -71,6 +71,7 @@ wss.on('connection', (ws) => {
         if (m.t === 'create') games.set(code, new Game(code));
         const game = games.get(code);
         if (!game) throw new Error('Room not found');
+        if (m.t === 'join' && game.players[0] && game.players[0].watch) throw new Error('This room is set up as an AI game to watch');
         const idx = game.join(m.name);
         sockets.set(ws, { game, idx });
         ws.send(JSON.stringify({ t: 'joined', code, token: game.players[idx].token }));
