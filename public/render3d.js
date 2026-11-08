@@ -983,6 +983,7 @@ function update(st, ghost) {
   updateLinks(st);
   const t = performance.now();
   anims.forEach((f) => f(t));
+  flyStep(t);
   placeCamera();
   renderer.render(scene, active());
 }
@@ -1008,6 +1009,15 @@ function pan(dx, dy) {
 }
 function orbit(dYaw, dPitch = 0) { if (flat) return; cam.yaw += dYaw; cam.pitch = Math.min(1.45, Math.max(0.35, cam.pitch + dPitch)); }
 function reset() { cam.target.set(0, 0, 0); cam.dist = 17; cam.yaw = 0; cam.pitch = 0.95; }
+// launch intro: start far out in space and swoop down onto the base
+let flight = null;
+function intro(ms = 4200) { flight = { t0: performance.now(), ms }; cam.target.set(0, 0, 0); }
+function flyStep(t) {
+  if (!flight) return;
+  const k = Math.min(1, (t - flight.t0) / flight.ms), e = 1 - Math.pow(1 - k, 3);
+  cam.dist = 120 + (17 - 120) * e; cam.yaw = -2.4 + 2.4 * e; cam.pitch = 0.35 + (0.95 - 0.35) * e;
+  if (k >= 1) flight = null;
+}
 function setVisible(v) { if (renderer) renderer.domElement.style.display = v ? 'block' : 'none'; }
 
 function setFlat(v) { flat = !!v; }
@@ -1127,5 +1137,5 @@ function snapshotType(type, race, rot = 0, wPx = 96, hPx = 80) {
   typeSnapCache.set(key, out);
   return out;
 }
-window.Render3D = { snapshotType, showScore, highlight, snapshot, setFlat, init, update, pick, zoom, pan, orbit, reset, setVisible, resize };
+window.Render3D = { intro, snapshotType, showScore, highlight, snapshot, setFlat, init, update, pick, zoom, pan, orbit, reset, setVisible, resize };
 window.dispatchEvent(new Event('render3d-ready'));

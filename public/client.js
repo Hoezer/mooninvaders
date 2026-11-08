@@ -15,7 +15,7 @@
     ws.onmessage = (ev) => {
       const m = JSON.parse(ev.data);
       if (m.t === 'joined') { store('mi_session', JSON.stringify({ code: m.code, token: m.token })); history.replaceState(null, '', '#' + m.code); }
-      if (m.t === 'state') { st = m.state; render(); }
+      if (m.t === 'state') { const was = st && st.status; st = m.state; render(); if (st.status === 'playing' && st.round === 1 && (was === 'lobby' || (!was && st.placed.length <= 1))) launchIntro(); }
       if (m.t === 'error') {
         toast(m.msg);
         if (/rejoin/.test(m.msg)) store('mi_session', null);
@@ -72,6 +72,19 @@
     return '<tr class="endDetail"><td></td><td colspan="6">' + lines + '<div class="exLine total"><span>Total</span><span class="muted">' + items.length + ' facilit' + (items.length === 1 ? 'y' : 'ies') + '</span><b>' + r.total + '</b></div></td></tr>';
   }
   document.addEventListener('click', (e) => { const tr = e.target.closest && e.target.closest('.endRow'); if (!tr) return; const i = +tr.dataset.exp; endOpen.has(i) ? endOpen.delete(i) : endOpen.add(i); renderEnd(); });
+  // big launch moment: race lineup, countdown, then the camera flies in from space
+  function launchIntro() {
+    let el = document.getElementById('launch');
+    if (!el) { el = document.createElement('div'); el.id = 'launch'; document.body.appendChild(el); }
+    const races = st.players.map((p) => '<div class="lRace" style="--pc:' + MI.COLORS[p.color].hex + '"><img src="' + portraitURL(p.race) + '" alt=""><b>' + esc(p.name) + '</b><small>' + MI.RACES[p.race].name + '</small></div>').join('<span class="lVs">VS</span>');
+    el.innerHTML = '<div class="lStars"></div><div class="lInner"><div class="lTitle">THE COLONIZATION BEGINS</div><div class="lRaces">' + races + '</div><div class="lCount"></div></div>';
+    el.className = 'show';
+    const cnt = el.querySelector('.lCount');
+    const steps = ['3', '2', '1', 'LAUNCH!'];
+    steps.forEach((s, n) => setTimeout(() => { cnt.textContent = s; cnt.classList.remove('pop'); void cnt.offsetWidth; cnt.classList.add('pop'); }, 700 + n * 650));
+    setTimeout(() => { el.classList.add('out'); if (window.Render3D && Render3D.intro) Render3D.intro(); }, 700 + steps.length * 650);
+    setTimeout(() => { el.className = ''; el.innerHTML = ''; }, 700 + steps.length * 650 + 900);
+  }
   function renderEnd() {
     const el = $('endScreen');
     if (st.status !== 'ended') { endClosed = false; el.classList.add('hidden'); return; }

@@ -348,3 +348,38 @@ body.inRoom .roomcode b { font-size: 26px; }
 .race.aiTile { border-color: rgba(60,240,150,.45); }
 .race.aiTile canvas { filter: saturate(.85) brightness(.85); }
 .race.aiTile:hover { border-color: #3cf096; box-shadow: 0 0 24px rgba(60,240,150,.35); }
+
+/* ---- launch: glowing start button ---- */
+#startBtn { position: relative; overflow: hidden; letter-spacing: .12em; text-transform: uppercase; font-weight: 800;
+  box-shadow: 0 0 0 1px rgba(60,240,150,.6), 0 0 28px rgba(60,240,150,.45); animation: launchPulse 1.8s ease-in-out infinite; }
+#startBtn:disabled { animation: none; box-shadow: none; }
+#startBtn::after { content: ''; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); animation: launchSweep 2.6s ease-in-out infinite; }
+#startBtn:disabled::after { display: none; }
+#startBtn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 0 0 1px #3cf096, 0 0 44px rgba(60,240,150,.7); }
+@keyframes launchPulse { 50% { box-shadow: 0 0 0 1px rgba(60,240,150,.9), 0 0 46px rgba(60,240,150,.7); } }
+@keyframes launchSweep { 0% { left: -60%; } 60%, 100% { left: 130%; } }
+
+/* ---- launch intro overlay ---- */
+#launch { position: fixed; inset: 0; z-index: 200; display: none; place-items: center; background: radial-gradient(circle at 50% 50%, rgba(8,30,20,.9), rgba(0,0,0,.97)); }
+#launch.show { display: grid; animation: lIn .4s ease-out; }
+#launch.out { animation: lOut .9s ease-in forwards; }
+#launch .lStars { position: absolute; inset: 0; background-image: radial-gradient(2px 2px at 20% 30%, #fff, transparent), radial-gradient(1px 1px at 70% 60%, #fff, transparent), radial-gradient(2px 2px at 40% 80%, #9ff, transparent), radial-gradient(1px 1px at 85% 20%, #fff, transparent);
+  background-size: 300px 300px; animation: lWarp 3s linear infinite; opacity: .7; }
+#launch .lInner { position: relative; text-align: center; }
+#launch .lTitle { font-family: Orbitron; font-size: 22px; letter-spacing: .4em; color: #3cf096; text-shadow: 0 0 20px rgba(60,240,150,.6); animation: lDrop .6s ease-out; }
+#launch .lRaces { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 30px 0; }
+#launch .lRace { display: flex; flex-direction: column; align-items: center; gap: 6px; animation: lRise .6s ease-out backwards; }
+#launch .lRace:nth-child(3) { animation-delay: .1s; } #launch .lRace:nth-child(5) { animation-delay: .2s; } #launch .lRace:nth-child(7) { animation-delay: .3s; }
+#launch .lRace img { width: 120px; height: 120px; border-radius: 20px; border: 3px solid var(--pc); box-shadow: 0 0 30px color-mix(in srgb, var(--pc) 60%, transparent); }
+#launch .lRace b { font-family: Orbitron; font-size: 16px; color: var(--pc); }
+#launch .lRace small { color: #9fb5aa; font-size: 11px; }
+#launch .lVs { font-family: Orbitron; font-weight: 900; color: #fff; opacity: .5; }
+#launch .lCount { font-family: Orbitron; font-size: 110px; font-weight: 900; color: #fff; height: 130px; text-shadow: 0 0 40px #3cf096; }
+#launch .lCount.pop { animation: lPop .6s ease-out; }
+@keyframes lIn { from { opacity: 0; } }
+@keyframes lOut { to { opacity: 0; transform: scale(1.6); filter: blur(6px); } }
+@keyframes lDrop { from { opacity: 0; transform: translateY(-30px); } }
+@keyframes lRise { from { opacity: 0; transform: translateY(40px) scale(.8); } }
+@keyframes lPop { from { transform: scale(2.2); opacity: 0; } 60% { transform: scale(.95); opacity: 1; } }
+@keyframes lWarp { to { background-position: 0 300px; transform: scale(1.04); } }
+@media (max-width: 700px) { #launch .lRace img { width: 70px; height: 70px; } #launch .lCount { font-size: 70px; } }
