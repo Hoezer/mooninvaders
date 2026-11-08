@@ -240,9 +240,12 @@ class Game {
       for (const [t, d] of Object.entries(PIECES)) if (!d.neutral && (!d.race || d.race === p.race)) p.supply[t] = d.count;
       for (const t of STARTER) { p.supply[t]--; p.pad.push({ uid: this.nextUid++, type: t }); }
     });
-    this.turn = 0; this.phase = 'build';
+    // a random player starts; rounds turn over when it is their turn again
+    this.firstTurn = Math.floor(Math.random() * this.players.length);
+    this.turn = this.firstTurn; this.phase = 'build';
+    this.introUntil = Date.now() + 7000; // let the launch intro play before computers move
     this.addLog('The colonization of the moon has begun!');
-    this.addLog(`${this.players[0].name}'s turn.`);
+    this.addLog(`${this.players[this.turn].name} was chosen to start.`);
     return watcher;
   }
 
@@ -332,7 +335,7 @@ class Game {
     if (p.orders.length) this.addLog(`${p.name} ordered ${p.orders.length} piece(s).`);
     p.incoming = p.orders; p.orders = [];
     this.turn = (this.turn + 1) % this.players.length;
-    if (this.turn === 0) {
+    if (this.turn === (this.firstTurn || 0)) {
       this.idleRounds = this.placedThisRound ? 0 : (this.idleRounds || 0) + 1;
       if (this.idleRounds >= 3) return this.finish('Three rounds passed without anyone building.');
       this.placedThisRound = false; this.round++;
@@ -361,7 +364,7 @@ class Game {
     return {
       code: this.code, status: this.status, you: forIdx, botDelay: this.botDelay || 600, endReason: this.endReason || null,
       w: this.w, h: this.h, mask: this.mask, placed: this.placed.map(({ abs, ...q }) => q),
-      turn: this.turn, round: this.round, phase: this.phase, lastRoll: this.lastRoll, log: this.log,
+      turn: this.turn, firstTurn: this.firstTurn || 0, round: this.round, phase: this.phase, lastRoll: this.lastRoll, log: this.log,
       scores,
       players: this.players.map((p, idx) => ({
         name: p.name, race: p.race, color: p.color, watch: !!p.watch, capsules: p.capsules, connected: p.connected, bot: !!p.bot,

@@ -30,7 +30,7 @@
         g.botTimer = null;
         try { g.botStep(); } catch (e) { console.error('Bot error:', e); try { g.endTurn(g.turn); } catch (_) { g.phase = 'order'; } }
         if (this.game === g) this.broadcast();
-      }, g.botDelay || 600);
+      }, Math.max(g.botDelay || 600, (g.introUntil || 0) - Date.now()));
     }
     close() { this.readyState = 3; if (this.game) { clearTimeout(this.game.botTimer); this.game.botTimer = null; } this.game = null; }
     send(raw) {

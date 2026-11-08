@@ -45,7 +45,7 @@ function scheduleBot(game) {
     game.botTimer = null;
     try { game.botStep(); } catch (e) { console.error('Bot error:', e.message); try { game.endTurn(game.turn); } catch (_) { game.phase = 'order'; } }
     broadcast(game);
-  }, game.botDelay || 600);
+  }, Math.max(game.botDelay || 600, (game.introUntil || 0) - Date.now()));
 }
 
 const wss =new WebSocketServer({ server });

@@ -47,7 +47,7 @@
   const watchAi = () => { store('mi_session', null); if (ws) { ws.onclose = null; ws.close(); } connect(() => { send({ t: 'create', name: name() }); send({ t: 'watch', on: true }); for (const r of Object.keys(MI.RACES)) send({ t: 'addBot', race: r }); }); };
   $('watchBtn').onclick = watchAi;
   // after going back to the lobby you can jump straight back into your game
-  try { const last = JSON.parse(load('mi_last') || 'null'); if (last && !load('mi_session')) { const b = document.createElement('button'); b.id = 'resumeBtn'; b.className = 'primary'; b.textContent = '↩ Back to game ' + last.code; $('joinBox').prepend(b); } } catch (e) { /* ignore */ }
+  try { const last = JSON.parse(load('mi_last') || 'null'); if (last && !load('mi_session')) { const b = document.createElement('button'); b.id = 'resumeBtn'; b.className = 'primary'; b.textContent = 'Back to game ' + last.code; $('joinBox').prepend(b); } } catch (e) { /* ignore */ }
   document.addEventListener('click', (e) => {
     const t = e.target.closest('button'); if (!t) return;
     if (t.id === 'newAiBtn' || t.id === 'endNewAi') watchAi();
@@ -77,13 +77,26 @@
     let el = document.getElementById('launch');
     if (!el) { el = document.createElement('div'); el.id = 'launch'; document.body.appendChild(el); }
     const races = st.players.map((p) => '<div class="lRace" style="--pc:' + MI.COLORS[p.color].hex + '"><img src="' + portraitURL(p.race) + '" alt=""><b>' + esc(p.name) + '</b><small>' + MI.RACES[p.race].name + '</small></div>').join('<span class="lVs">VS</span>');
-    el.innerHTML = '<div class="lStars"></div><div class="lInner"><div class="lTitle">THE COLONIZATION BEGINS</div><div class="lRaces">' + races + '</div><div class="lCount"></div></div>';
+    el.innerHTML = '<div class="lStars"></div><div class="lInner"><div class="lTitle">THE COLONIZATION BEGINS</div><div class="lRaces">' + races + '</div><div class="lWho">Who lands first?</div><div class="lCount"></div></div>';
     el.className = 'show';
-    const cnt = el.querySelector('.lCount');
+    const cnt = el.querySelector('.lCount'), who = el.querySelector('.lWho');
+    const cards = [...el.querySelectorAll('.lRace')], n = cards.length, winner = st.firstTurn != null ? st.firstTurn : st.turn;
+    // roulette: a light runs over the races, slows down and stops on the starting player
+    const hops = n * 3 + ((winner - 0 + n) % n);
+    let t = 900;
+    for (let k = 0; k <= hops; k++) {
+      const at = k % n, last = k === hops;
+      setTimeout(() => {
+        cards.forEach((c, j) => c.classList.toggle('lit', j === at));
+        if (last) { cards[at].classList.add('chosen'); who.innerHTML = '<b style="color:' + MI.COLORS[st.players[at].color].hex + '">' + esc(st.players[at].name) + '</b> lands first!'; who.classList.add('pop'); }
+      }, t);
+      t += 60 + Math.pow(k / hops, 3) * 260;
+    }
+    const start = t + 700;
     const steps = ['3', '2', '1', 'LAUNCH!'];
-    steps.forEach((s, n) => setTimeout(() => { cnt.textContent = s; cnt.classList.remove('pop'); void cnt.offsetWidth; cnt.classList.add('pop'); }, 700 + n * 650));
-    setTimeout(() => { el.classList.add('out'); if (window.Render3D && Render3D.intro) Render3D.intro(); }, 700 + steps.length * 650);
-    setTimeout(() => { el.className = ''; el.innerHTML = ''; }, 700 + steps.length * 650 + 900);
+    steps.forEach((s, k) => setTimeout(() => { cnt.textContent = s; cnt.classList.remove('pop'); void cnt.offsetWidth; cnt.classList.add('pop'); }, start + k * 600));
+    setTimeout(() => { el.classList.add('out'); if (window.Render3D && Render3D.intro) Render3D.intro(); }, start + steps.length * 600);
+    setTimeout(() => { el.className = ''; el.innerHTML = ''; }, start + steps.length * 600 + 900);
   }
   function renderEnd() {
     const el = $('endScreen');
@@ -99,17 +112,17 @@
     }).sort((a, b) => b.total - a.total || b.built - a.built);
     const winners = rows.filter((r) => r.total === rows[0].total);
     const title = winners.length > 1 ? `${winners.map((r) => esc(r.p.name)).join(' & ')} share the moon!` : `${esc(winners[0].p.name)} rules the moon!`;
-    const medal = ['🥇', '🥈', '🥉', '4'];
+    const medal = ['1', '2', '3', '4'];
     const podOrder = [rows[1], rows[0], rows[2], rows[3]].filter(Boolean);
     const height = (r) => 60 + 90 * (rows.length - rows.indexOf(r)) / rows.length;
     el.innerHTML = `<div class="endCard">
-      <h2>🌕 ${title}</h2><div class="why">${esc(st.endReason || 'Game over')} · ${st.round} rounds played</div>
+      <h2>${title}</h2><div class="why">${esc(st.endReason || 'Game over')} · ${st.round} rounds played</div>
       <div class="podium">${podOrder.map((r) => `<div class="pod"><div class="nm">${esc(r.p.name)}</div><small>${MI.RACES[r.p.race].name}</small><div class="sc">${r.total}</div>
         <div class="blk" style="height:${height(r)}px;background:${MI.COLORS[r.p.color].hex}">${medal[rows.indexOf(r)]}</div></div>`).join('')}</div>
       <table class="endTable"><tr><th>#</th><th>Race</th><th class="num">Built</th><th class="num">Rooms</th><th class="num">Facilities scoring</th><th class="num">Best</th><th class="num">Score</th></tr>
       ${rows.map((r, k) => `<tr class="endRow" data-exp="${r.i}" title="Click to see where the points come from"><td>${endOpen.has(r.i) ? '▾' : '▸'} ${k + 1}</td><td><span class="dot" style="background:${MI.COLORS[r.p.color].hex}"></span> ${esc(r.p.name)}</td><td class="num">${r.built}</td><td class="num">${r.rooms}</td><td class="num">${r.scoring}/${r.fac}</td>
         <td class="num">${r.best && r.best.points ? `${esc(MI.PIECES[r.best.type].name)} ${r.best.points}` : '–'}</td><td class="num"><b>${r.total}</b></td></tr>${endOpen.has(r.i) ? endDetail(r) : ''}`).join('')}</table>
-      <div class="endBtns"><button id="endClose">Look at the moon</button><button id="endNewAi">👀 New AI game</button><button id="endLobby" class="primary">Back to lobby</button></div></div>`;
+      <div class="endBtns"><button id="endClose">Look at the moon</button><button id="endNewAi">New AI game</button><button id="endLobby" class="primary">Back to lobby</button></div></div>`;
   }
   $('slots').onclick = (e) => { const k = e.target.closest('[data-kick]'), a = e.target.closest('[data-addbot]'); if (k) send({ t: 'removeBot', idx: +k.dataset.kick }); if (a) send({ t: 'addBot', race: a.dataset.addbot }); };
 
@@ -125,7 +138,7 @@
     {
       const d = document.createElement('div');
       d.className = 'race aiTile' + (me.watch ? ' sel' : ''); d.style.setProperty('--rc', '#3cf096');
-      d.innerHTML = '<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">' + (me.watch ? '✔ WATCHING' : '👀 WATCH') + '</span><b>AI GAME</b><i>COMPUTERS ONLY</i><p>You watch, the computers play.</p><span class="rcAb">Pick the computer races below.</span></div>';
+      d.innerHTML = '<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">' + (me.watch ? 'WATCHING' : 'WATCH') + '</span><b>AI GAME</b><i>COMPUTERS ONLY</i><p>You watch, the computers play.</p><span class="rcAb">Pick the computer races below.</span></div>';
       const cv = d.querySelector('canvas'), x = cv.getContext('2d');
       x.fillStyle = '#05070d'; x.fillRect(0, 0, 360, 360);
       Object.keys(MI.RACES).forEach((k, n) => { const t = document.createElement('canvas'); t.width = t.height = 180; Portraits.draw(t, k); x.drawImage(t, (n % 2) * 180, Math.floor(n / 2) * 180, 180, 180); });
@@ -137,7 +150,7 @@
       const d = document.createElement('div');
       d.className = 'race' + (me.race === k ? ' sel' : '') + (takenBy ? ' taken' : '');
       d.style.setProperty('--rc', Portraits.ACC[k]);
-      d.innerHTML = `<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">${me.race === k ? '✔ YOUR RACE' : takenBy ? (takenBy.bot ? '🤖 COMPUTER' : '👤 ' + esc(takenBy.name)) : 'PLAY'}</span>
+      d.innerHTML = `<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">${me.race === k ? 'YOUR RACE' : takenBy ? (takenBy.bot ? 'COMPUTER' : esc(takenBy.name)) : 'PLAY'}</span>
         <b>${r.name.split(' ').pop()}</b><i>${r.name.split(' ')[0]}</i><p>${r.blurb}</p><span class="rcAb">${r.ability}</span></div>`;
       Portraits.draw(d.querySelector('canvas'), k);
       if (!takenBy) d.onclick = () => send({ t: 'pick', race: k });
@@ -174,12 +187,12 @@
       $('colorList').appendChild(d);
     }
     $('lobbyPlayers').innerHTML = st.players.map((p, i) =>
-      `<li><span class="dot" style="background:${(MI.COLORS[p.color] || { hex: '#3cf096' }).hex}"></span>${esc(p.name)}${i === 0 ? ' — host' : ''}${p.bot ? ' 🤖' : ''}<span class="muted">&nbsp;${(MI.RACES[p.race] || { name: 'Watching' }).name}</span>${p.bot && st.you === 0 ? ` <button data-kick="${i}" style="margin-left:auto;padding:2px 8px">✕</button>` : ''}</li>`).join('');
+      `<li><span class="dot" style="background:${(MI.COLORS[p.color] || { hex: '#3cf096' }).hex}"></span>${esc(p.name)}${i === 0 ? ' — host' : ''}${p.bot ? '' : ''}<span class="muted">&nbsp;${(MI.RACES[p.race] || { name: 'Watching' }).name}</span>${p.bot && st.you === 0 ? ` <button data-kick="${i}" style="margin-left:auto;padding:2px 8px">✕</button>` : ''}</li>`).join('');
     // step 3: one slot per race
     const host = st.you === 0;
     $('slots').innerHTML = Object.entries(MI.RACES).map(([k, r]) => {
       const i = st.players.findIndex((p) => p.race === k), p = st.players[i];
-      const who = !p ? '<span class="open">Open</span>' : i === st.you ? '<b>You</b>' : p.bot ? '<b>🤖 Computer</b>' : '<b>👤 ' + esc(p.name) + '</b>';
+      const who = !p ? '<span class="open">Open</span>' : i === st.you ? '<b>You</b>' : p.bot ? '<b>Computer</b>' : '<b>' + esc(p.name) + '</b>';
       const act = !host ? '' : !p ? '<button data-addbot="' + k + '">+ Computer</button>' : p.bot ? '<button data-kick="' + i + '" class="ghost">Remove</button>' : '';
       return '<div class="slot' + (p ? ' filled' : '') + '" style="--rc:' + Portraits.ACC[k] + (p ? ';--pc:' + MI.COLORS[p.color].hex : '') + '"><img src="' + portraitURL(k) + '" alt=""><div><span class="rn">' + r.name.split(' ').pop() + '</span>' + who + '</div>' + act + '</div>';
     }).join('');
@@ -187,8 +200,8 @@
     $('startBtn').classList.toggle('hidden', st.you !== 0);
     $('startBtn').disabled = st.players.length < 2;
     const nBots = st.players.filter((p) => p.bot).length;
-    if (me.watch) { $('startBtn').disabled = nBots < 2; $('startBtn').textContent = nBots < 2 ? 'Add at least 2 computer races' : '👀 Start AI game · ' + nBots + ' computers'; }
-    else $('startBtn').textContent = st.players.length < 2 ? 'Add a computer or wait for a friend' : '🚀 Launch the colonization · ' + st.players.length + ' races';
+    if (me.watch) { $('startBtn').disabled = nBots < 2; $('startBtn').textContent = nBots < 2 ? 'Add at least 2 computer races' : 'Start AI game · ' + nBots + ' computers'; }
+    else $('startBtn').textContent = st.players.length < 2 ? 'Add a computer or wait for a friend' : 'Launch the colonization · ' + st.players.length + ' races';
     $('waitHost').classList.toggle('hidden', st.you === 0);
   }
 
@@ -211,18 +224,18 @@
     const pw = st.scores.power[meIdx], myColor = MI.COLORS[me.color].hex;
     const pct = pw.supply ? Math.min(100, (pw.demand / pw.supply) * 100) : 100;
     const isHost = st.you <= 0;
-    const speeds = [['▶ 1×', 600], ['▶▶ 4×', 150], ['⏩ 15×', 40]];
-    const ctrl = isHost && st.status === 'playing' ? `<div class="ctrl">${st.players.some((p) => p.bot) ? speeds.map(([l, ms]) => `<button data-speed="${ms}" class="${st.botDelay === ms ? 'on' : ''}">${l}</button>`).join('') : ''}<button data-finish="1">🏁 End game now</button></div>` : '';
-    $('mePanel').innerHTML = (spect ? `<div class="spectBar">👀 Watching 4 computers · following <b>${esc(me.name)}</b><button id="newAiBtn">New AI game</button>${ctrl}</div>` : (ctrl ? `<div class="spectBar">${ctrl}</div>` : '')) + `<h3><span class="dot" style="background:${myColor}"></span> ${esc(me.name)} — ${MI.RACES[me.race].name}</h3>
+    const speeds = [['1×', 600], ['4×', 150], ['15×', 40]];
+    const ctrl = isHost && st.status === 'playing' ? `<div class="ctrl">${st.players.some((p) => p.bot) ? speeds.map(([l, ms]) => `<button data-speed="${ms}" class="${st.botDelay === ms ? 'on' : ''}">${l}</button>`).join('') : ''}<button data-finish="1">End game now</button></div>` : '';
+    $('mePanel').innerHTML = (spect ? `<div class="spectBar">Watching 4 computers · following <b>${esc(me.name)}</b><button id="newAiBtn">New AI game</button>${ctrl}</div>` : (ctrl ? `<div class="spectBar">${ctrl}</div>` : '')) + `<h3><span class="dot" style="background:${myColor}"></span> ${esc(me.name)} — ${MI.RACES[me.race].name}</h3>
       <div class="muted" style="font-size:12px">${MI.RACES[me.race].ability}</div>`;
     const resCount = st.placed.filter((p) => p.owner === meIdx && MI.PIECES[p.type].kind === 'resource').length;
     $('hud').innerHTML = `
       <div class="chip"><span class="ic">◉</span><div><small>Capsules</small><b>${me.capsules}</b></div></div>
-      <div class="chip ${pw.demand > pw.supply ? 'warn' : ''}"><span class="ic">⚡</span><div class="pw2"><small>Power</small>
+      <div class="chip ${pw.demand > pw.supply ? 'warn' : ''}"><span class="ic">ϟ</span><div class="pw2"><small>Power</small>
         <div class="pwRow"><span>Used</span><div class="bar used ${pw.demand > pw.supply ? 'over' : ''}"><i style="width:${Math.min(100, pw.supply ? pw.demand / pw.supply * 100 : (pw.demand ? 100 : 0))}%"></i></div><b>${pw.demand}</b></div>
         <div class="pwRow"><span>Left</span><div class="bar left"><i style="width:${pw.supply ? Math.max(0, pw.supply - pw.demand) / pw.supply * 100 : 0}%"></i></div><b>${Math.max(0, pw.supply - pw.demand)}</b></div>
       </div></div>
-      <div class="chip ${resCount ? '' : 'warn'}"><span class="ic">⚗</span><div><small>Resources</small><b>${resCount}</b></div></div>
+      <div class="chip ${resCount ? '' : 'warn'}"><span class="ic">◈</span><div><small>Resources</small><b>${resCount}</b></div></div>
       <div class="chip"><span class="ic">▦</span><div><small>Storage</small><b>${me.storage.length} / ${me.storageCap}</b></div></div>
       <div class="chip"><span class="ic">★</span><div><small>Score</small><b>${st.scores.details[meIdx].total}</b></div></div>`;
 
@@ -231,7 +244,7 @@
     if (st.status === 'ended') {
       const best = Math.max(...st.scores.details.map((d) => d.total));
       const winners = st.players.filter((_, i) => st.scores.details[i].total === best).map((p) => esc(p.name)).join(' & ');
-      a = `<div class="winner">🌕 ${winners} rule${winners.includes('&') ? '' : 's'} the moon!</div>`;
+      a = `<div class="winner">${winners} rule${winners.includes('&') ? '' : 's'} the moon!</div>`;
     } else if (!myTurn) a = `<h3>Waiting</h3><div class="muted">${esc(cur.name)} is playing…</div>`;
     else if (st.phase === 'build') {
       a = `<h3>1 · Build</h3><div class="muted" style="font-size:12px;margin-bottom:8px">Select a piece, hover the moon and click to build. Rotate: <b>arrows / WASD / R</b> or right-click. Scroll = zoom, drag = move, double-click = reset.</div>
@@ -289,7 +302,7 @@
       shop.classList.remove('hidden');
       let h = `<div class="mktHead"><span>Market</span><span class="wallet">◉ ${me.capsules} capsules</span></div>`;
       const spent = me.orders.reduce((a, o) => a + MI.PIECES[o.type].cost, 0);
-      h += `<div class="cart"><div class="cartHead"><b>🛒 Your order</b><span>${me.orders.length} piece${me.orders.length === 1 ? '' : 's'} · ${spent} ◉ spent</span></div>`;
+      h += `<div class="cart"><div class="cartHead"><b>Your order</b><span>${me.orders.length} piece${me.orders.length === 1 ? '' : 's'} · ${spent} ◉ spent</span></div>`;
       h += me.orders.length
         ? '<div class="cartItems">' + me.orders.map((o) => `<div class="cartItem" title="Cancel this order">
             <canvas data-mini="${o.type}" width="${48 * devicePixelRatio}" height="${48 * devicePixelRatio}" style="width:48px;height:48px"></canvas>
@@ -308,7 +321,7 @@
         const left = me.supply[k];
         const can = left > 0 && me.capsules >= d.cost;
         const tags = [
-          `<span class="tag ${d.power > 0 ? 'pw-plus' : 'pw-min'}">⚡ ${d.power > 0 ? '+' : ''}${d.power}</span>`,
+          `<span class="tag ${d.power > 0 ? 'pw-plus' : 'pw-min'}">${d.power > 0 ? '+' : ''}${d.power}</span>`,
           d.points ? `<span class="tag pts">★ ${d.points}</span>` : '',
           d.cells.length > 1 ? '<span class="tag">2 cells</span>' : '',
         ].join('');
