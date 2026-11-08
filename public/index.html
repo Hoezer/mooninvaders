@@ -17,15 +17,15 @@
       <h1>MOON<span>INVADERS</span></h1>
       <p class="tag">Four races. One moon. Every piece has to fit.</p>
     </div>
-    <div id="joinBox" class="card">
-      <label>Your name <input id="name" maxlength="20" placeholder="Commander"></label>
-      <button id="createBtn" class="primary">Create new game</button>
-      <button id="watchBtn">AI game &middot; watch computers play</button>
-      <div class="or">or join with a code</div>
-      <div class="row">
-        <input id="codeIn" maxlength="4" placeholder="ABCD">
-        <button id="joinBtn">Join</button>
+    <div id="homeMoon" aria-hidden="true"></div>
+    <div id="joinBox" class="home">
+      <div id="homeRaces" class="homeRaces"></div>
+      <label class="homeName"><span>Commander name</span><input id="name" maxlength="20" placeholder="Commander"></label>
+      <div class="homeChoices">
+        <button id="createBtn" class="choice play"><canvas id="playArt" width="360" height="200"></canvas><span class="cTag">MULTIPLAYER</span><b>Play</b><small>Pick your race, add computers or invite friends with a room code.</small></button>
+        <button id="watchBtn" class="choice ai"><canvas id="aiArt" width="360" height="200"></canvas><span class="cTag">SPECTATOR</span><b>AI Game</b><small>Choose 2 to 4 computer races and watch them fight for the moon.</small></button>
       </div>
+      <div class="homeJoin"><span>Got a room code?</span><input id="codeIn" maxlength="4" placeholder="ABCD"><button id="joinBtn">Join</button></div>
     </div>
     <div id="roomBox" class="card hidden">
       <button id="leaveRoomBtn" class="ghost" title="Leave this room and go back to the start screen">&larr; Back</button>

@@ -46,6 +46,17 @@
   // AI game: open a room in watch mode with all 4 races as computers; you can still change them, then press start
   const watchAi = () => { store('mi_session', null); if (ws) { ws.onclose = null; ws.close(); } connect(() => { send({ t: 'create', name: name() }); send({ t: 'watch', on: true }); for (const r of Object.keys(MI.RACES)) send({ t: 'addBot', race: r }); }); };
   $('watchBtn').onclick = watchAi;
+  // start screen art: floating race lineup and images on the two choice cards
+  (function homeArt() {
+    try {
+      const strip = $('homeRaces');
+      if (strip && !strip.children.length) Object.keys(MI.RACES).forEach((k, n) => { const cv = document.createElement('canvas'); cv.width = cv.height = 220; Portraits.draw(cv, k); cv.style.setProperty('--rc', Portraits.ACC[k]); cv.style.animationDelay = (n * 0.4) + 's'; strip.appendChild(cv); });
+      const paint = (id, keys) => { const cv = $(id); if (!cv) return; const x = cv.getContext('2d'); x.fillStyle = '#05070d'; x.fillRect(0, 0, 360, 200);
+        keys.forEach((k, n) => { const t = document.createElement('canvas'); t.width = t.height = 200; Portraits.draw(t, k); x.globalAlpha = keys.length > 1 ? .95 : 1; x.drawImage(t, keys.length > 1 ? n * 90 : 80, 0, 200, 200); }); };
+      paint('playArt', ['humans']);
+      paint('aiArt', Object.keys(MI.RACES));
+    } catch (e) { /* art is decoration only */ }
+  })();
   // after going back to the lobby you can jump straight back into your game
   try { const last = JSON.parse(load('mi_last') || 'null'); if (last && !load('mi_session')) { const b = document.createElement('button'); b.id = 'resumeBtn'; b.className = 'primary'; b.textContent = 'Back to game ' + last.code; $('joinBox').prepend(b); } } catch (e) { /* ignore */ }
   document.addEventListener('click', (e) => {
