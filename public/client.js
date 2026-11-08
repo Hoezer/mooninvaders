@@ -110,12 +110,12 @@
     // extra tile: watch a game played by 4 computers
     {
       const d = document.createElement('div');
-      d.className = 'race aiTile'; d.style.setProperty('--rc', '#3cf096');
-      d.innerHTML = '<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">👀 WATCH</span><b>AI GAME</b><i>4 COMPUTERS</i><p>Sit back and watch all four races fight for the moon.</p><span class="rcAb">Starts a new game with 4 computer players.</span></div>';
+      d.className = 'race aiTile' + (me.watch ? ' sel' : ''); d.style.setProperty('--rc', '#3cf096');
+      d.innerHTML = '<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">' + (me.watch ? '✔ WATCHING' : '👀 WATCH') + '</span><b>AI GAME</b><i>COMPUTERS ONLY</i><p>You watch, the computers play.</p><span class="rcAb">Pick the computer races below.</span></div>';
       const cv = d.querySelector('canvas'), x = cv.getContext('2d');
       x.fillStyle = '#05070d'; x.fillRect(0, 0, 360, 360);
       Object.keys(MI.RACES).forEach((k, n) => { const t = document.createElement('canvas'); t.width = t.height = 180; Portraits.draw(t, k); x.drawImage(t, (n % 2) * 180, Math.floor(n / 2) * 180, 180, 180); });
-      d.onclick = () => { if (confirmLeave()) watchAi(); };
+      d.onclick = () => send({ t: 'watch', on: true });
       $('raceList').appendChild(d);
     }
     for (const [k, r] of Object.entries(MI.RACES)) {
@@ -129,7 +129,13 @@
       if (!takenBy) d.onclick = () => send({ t: 'pick', race: k });
       $('raceList').appendChild(d);
     }
-    // big profile of the selected race
+    // big profile of the selected race (or the watch-mode explanation)
+    if (!me.race) {
+      $('raceProfile').style.setProperty('--rc', '#3cf096');
+      $('raceProfile').innerHTML = '<div class="prof watchProf"><div class="profTxt"><small>WATCH MODE</small><h2>AI game</h2><div class="profTitle">You watch, the computers play</div>'
+        + '<p>Choose under <b>Who plays?</b> which races join as a computer (at least 2), then press start. You follow every move live, can speed the game up and end it early.</p>'
+        + '<p class="muted">Want to play yourself after all? Click one of the race cards.</p></div></div>';
+    } else {
     const R = MI.RACES[me.race];
     const own = Object.values(MI.PIECES).filter((p) => p.race === me.race);
     $('raceProfile').style.setProperty('--rc', Portraits.ACC[me.race]);
@@ -143,6 +149,7 @@
       <div class="profPlay"><small>HOW TO PLAY</small>${esc(R.playstyle)}</div>
       <div class="profRooms"><small>RACE ROOMS</small>${own.map((p) => `<span>${esc(p.name)}${p.points ? ' ★' + p.points : ''}</span>`).join('')}</div></div></div>`;
     Portraits.draw($('raceProfile').querySelector('canvas'), me.race);
+    }
     $('colorList').innerHTML = '';
     for (const [k, c] of Object.entries(MI.COLORS)) {
       const taken = st.players.some((p, i) => p.color === k && i !== st.you);
@@ -153,7 +160,7 @@
       $('colorList').appendChild(d);
     }
     $('lobbyPlayers').innerHTML = st.players.map((p, i) =>
-      `<li><span class="dot" style="background:${MI.COLORS[p.color].hex}"></span>${esc(p.name)}${i === 0 ? ' — host' : ''}${p.bot ? ' 🤖' : ''}<span class="muted">&nbsp;${MI.RACES[p.race].name}</span>${p.bot && st.you === 0 ? ` <button data-kick="${i}" style="margin-left:auto;padding:2px 8px">✕</button>` : ''}</li>`).join('');
+      `<li><span class="dot" style="background:${(MI.COLORS[p.color] || { hex: '#3cf096' }).hex}"></span>${esc(p.name)}${i === 0 ? ' — host' : ''}${p.bot ? ' 🤖' : ''}<span class="muted">&nbsp;${(MI.RACES[p.race] || { name: 'Watching' }).name}</span>${p.bot && st.you === 0 ? ` <button data-kick="${i}" style="margin-left:auto;padding:2px 8px">✕</button>` : ''}</li>`).join('');
     // step 3: one slot per race
     const host = st.you === 0;
     $('slots').innerHTML = Object.entries(MI.RACES).map(([k, r]) => {
@@ -165,7 +172,9 @@
     $('botBtn').classList.add('hidden');
     $('startBtn').classList.toggle('hidden', st.you !== 0);
     $('startBtn').disabled = st.players.length < 2;
-    $('startBtn').textContent = st.players.length < 2 ? 'Add a computer or wait for a friend' : '🚀 Launch the colonization · ' + st.players.length + ' races';
+    const nBots = st.players.filter((p) => p.bot).length;
+    if (me.watch) { $('startBtn').disabled = nBots < 2; $('startBtn').textContent = nBots < 2 ? 'Add at least 2 computer races' : '👀 Start AI game · ' + nBots + ' computers'; }
+    else $('startBtn').textContent = st.players.length < 2 ? 'Add a computer or wait for a friend' : '🚀 Launch the colonization · ' + st.players.length + ' races';
     $('waitHost').classList.toggle('hidden', st.you === 0);
   }
 

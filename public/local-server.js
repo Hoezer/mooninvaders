@@ -67,7 +67,8 @@
         if (!g) throw new Error('Join a game first');
         switch (m.t) {
           case 'pick': g.pick(idx, m.race, m.color); break;
-          case 'start': g.start(idx); break;
+          case 'start': if (g.start(idx)) { this.idx = -1; this.emit({ t: 'joined', code: g.code, token: g.specToken }); } break;
+          case 'watch': g.watch(idx, !!m.on); break;
           case 'addBot': g.addBot(idx, m.race); break;
           case 'finishNow': if (idx > 0) throw new Error('Only the host can end the game'); g.finish('Ended early by the host.'); break;
           case 'speed': if (idx > 0) throw new Error('Only the host can change the speed'); g.botDelay = Math.max(40, Math.min(2000, m.ms | 0)); break;

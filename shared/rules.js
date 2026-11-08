@@ -113,7 +113,7 @@
 
   // Power: resources (everything that isn't a facility) first, then facilities by highest points.
   function computePower(s, owner) {
-    const race = RACES[s.players[owner].race];
+    const race = RACES[s.players[owner].race] || { bonusPower: 0, storagePerUnit: 1, anyHallway: false };
     const mine = s.placed.filter((p) => p.owner === owner);
     let supply = race.bonusPower;
     for (const p of mine) if (PIECES[p.type].power > 0) supply += PIECES[p.type].power;
@@ -175,7 +175,7 @@
   }
 
   function storageCapacity(s, owner) {
-    const race = RACES[s.players[owner].race];
+    const race = RACES[s.players[owner].race] || { bonusPower: 0, storagePerUnit: 1, anyHallway: false };
     return s.placed.filter((p) => p.owner === owner && p.type === 'small_storage').length * race.storagePerUnit;
   }
 

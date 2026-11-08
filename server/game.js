@@ -53,6 +53,20 @@ class Game {
     this.players[idx].bot = true;
   }
 
+  // host only watches: no own race, picks which races play as computers, then starts
+  watch(i, on) {
+    if (i !== 0 || this.status !== 'lobby') throw new Error('Only the host can do that in the lobby');
+    const p = this.players[0];
+    if (on) {
+      if (this.players.some((q, j) => j !== 0 && !q.bot)) throw new Error('Watch mode is only possible when no other people joined');
+      p.watch = true; p.race = null; p.color = null;
+    } else if (p.watch) {
+      p.watch = false;
+      p.race = Object.keys(RACES).find((r) => !this.players.some((q) => q.race === r)) || null;
+      p.color = RACE_COLOR[p.race] || null;
+    }
+  }
+
   removeBot(i, idx) {
     if (i !== 0 || this.status !== 'lobby') throw new Error('Not allowed');
     if (!this.players[idx] || !this.players[idx].bot) throw new Error('Not a computer player');
@@ -201,7 +215,7 @@ class Game {
     const p = this.players[i];
     if (race && RACES[race]) {
       if (this.players.some((q, j) => j !== i && q.race === race)) throw new Error('Race already taken');
-      p.race = race; if (RACE_COLOR[race]) p.color = RACE_COLOR[race];
+      p.race = race; p.watch = false; if (RACE_COLOR[race]) p.color = RACE_COLOR[race];
     }
     if (color && COLORS[color]) {
       if (this.players.some((q, j) => j !== i && q.color === color)) throw new Error('Colour already taken');
@@ -212,6 +226,12 @@ class Game {
   start(i) {
     if (i !== 0) throw new Error('Only the host can start');
     if (this.status !== 'lobby') throw new Error('Already started');
+    let watcher = false;
+    if (this.players[0] && this.players[0].watch) {
+      if (this.players.length < 3) throw new Error('Add at least 2 computer races to watch');
+      this.players.splice(0, 1); watcher = true;
+      this.specToken = crypto.randomBytes(12).toString('hex');
+    }
     if (this.players.length < 2) throw new Error('Need at least 2 players (add a computer player)');
     this.status = 'playing';
     for (const p of this.players) if (p.bot && BOT_LABEL[p.race]) p.name = BOT_LABEL[p.race];
@@ -223,6 +243,7 @@ class Game {
     this.turn = 0; this.phase = 'build';
     this.addLog('The colonization of the moon has begun!');
     this.addLog(`${this.players[0].name}'s turn.`);
+    return watcher;
   }
 
   me(i) {
@@ -343,7 +364,7 @@ class Game {
       turn: this.turn, round: this.round, phase: this.phase, lastRoll: this.lastRoll, log: this.log,
       scores,
       players: this.players.map((p, idx) => ({
-        name: p.name, race: p.race, color: p.color, capsules: p.capsules, connected: p.connected, bot: !!p.bot,
+        name: p.name, race: p.race, color: p.color, watch: !!p.watch, capsules: p.capsules, connected: p.connected, bot: !!p.bot,
         storageCap: this.status === 'lobby' ? 0 : R.storageCapacity(this, idx),
         // other players' requests are only shown face down: the puzzle shape, not the building
         ...(forIdx === idx || forIdx < 0

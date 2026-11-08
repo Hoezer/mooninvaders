@@ -94,7 +94,8 @@ wss.on('connection', (ws) => {
       const { game, idx } = s;
       switch (m.t) {
         case 'pick': game.pick(idx, m.race, m.color); break;
-        case 'start': game.start(idx); break;
+        case 'start': if (game.start(idx)) { sockets.set(ws, { game, idx: -1 }); ws.send(JSON.stringify({ t: 'joined', code: game.code, token: game.specToken })); } break;
+        case 'watch': game.watch(idx, !!m.on); break;
         case 'addBot': game.addBot(idx, m.race); break;
         case 'finishNow':
           if (idx > 0) throw new Error('Only the host can end the game');
