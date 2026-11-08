@@ -419,3 +419,7 @@ body.inRoom .roomcode b { font-size: 26px; }
 #loader .ldSub { font-size: 12px; color: #7f9a8d; letter-spacing: .12em; }
 @keyframes ldSpin { to { transform: rotateX(68deg) rotate(360deg); } }
 @keyframes ldDots { 0% { width: 0; } 100% { width: 1.6em; } }
+/* race cards: only the selected one is in full colour; the rest are dimmed and greyish */
+.lobbyLeft .race:not(.sel) { filter: grayscale(.75) brightness(.7); opacity: .8; transition: filter .2s, opacity .2s, transform .2s; }
+.lobbyLeft .race:not(.sel):not(.taken):hover { filter: none; opacity: 1; }
+.lobbyLeft .race.taken { filter: grayscale(1) brightness(.55); opacity: .65; }
