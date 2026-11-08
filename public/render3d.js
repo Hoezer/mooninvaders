@@ -2,7 +2,7 @@
 import * as THREE from '/vendor/three.module.js';
 
 const MI = window.MI;
-const WALL_H = 0.42, WALL_T = 0.08, DOOR = 0.38;
+const WALL_H = 0.42, WALL_T = 0.08;
 
 let renderer, scene, camera, ocam, root, holder, sun, flat = false;
 const active = () => (flat ? ocam : camera);
@@ -13,7 +13,6 @@ const raycaster = new THREE.Raycaster();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 let W = 16, H = 16;
 
-const toWorld = (x, y) => new THREE.Vector3(x - W / 2 + 0.5, 0, y - H / 2 + 0.5);
 const col = (c) => new THREE.Color(c);
 
 function init(container) {
@@ -166,6 +165,20 @@ function placeCamera() {
 // ---------- building meshes ----------
 const matCache = new Map();
 function mat(key, make) { if (!matCache.has(key)) matCache.set(key, make()); return matCache.get(key); }
+// free the GPU memory of a removed group: its own geometries, materials and textures, but never the shared/cached ones
+function disposeTree(obj) {
+  if (!obj) return;
+  const shared = new Set(); for (const v of matCache.values()) shared.add(v); for (const v of propMats.values()) shared.add(v); for (const k in markTex) shared.add(markTex[k]);
+  const done = new Set();
+  obj.traverse((o) => {
+    if (o.geometry && o.geometry !== openGeo && o.geometry !== geoLines && !done.has(o.geometry)) { done.add(o.geometry); o.geometry.dispose(); }
+    for (const m of [].concat(o.material || [])) {
+      if (shared.has(m) || done.has(m)) continue; done.add(m);
+      if (m.map && !shared.has(m.map) && !done.has(m.map)) { done.add(m.map); m.map.dispose(); }
+      m.dispose();
+    }
+  });
+}
 // sci-fi wall panelling (greyscale, tinted per race by the material colour)
 let wallTex = null;
 function wallTexture() {
@@ -218,61 +231,6 @@ function addBox(group, w, h, d, x, y, z, material, shadow = true) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
   m.position.set(x, y, z); m.castShadow = shadow; m.receiveShadow = true;
   group.add(m); return m;
-}
-
-// world-space cell walls; doors are gaps, closed doors where nothing connects
-function buildWalls(group, cells, race, connected, opts) {
-  const wm = opts.ghostMat ? [opts.ghostMat, opts.ghostMat, opts.ghostMat, opts.ghostMat, opts.ghostMat, opts.ghostMat] : wallMats(race);
-  const led = opts.ghostMat || ledMat(race);
-  const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-  for (const c of cells) {
-    const cx = c.x - W / 2 + 0.5, cz = c.y - H / 2 + 0.5;
-    for (let d = 0; d < 4; d++) {
-      const e = c.e[d];
-      if (e === 'x') continue;
-      const horiz = d % 2 === 0; // wall runs along x
-      const nx = DIRS[d][0], nz = DIRS[d][1];
-      const ex = cx + nx * (0.5 - WALL_T / 2), ez = cz + nz * (0.5 - WALL_T / 2);
-      const segs = e === 'w' ? [[-0.5, 0.5]] : [[-0.5, -DOOR / 2], [DOOR / 2, 0.5]];
-      for (const [a0, a1] of (opts.onlyDoors ? [] : segs)) {
-        const len = a1 - a0, mid = (a0 + a1) / 2;
-        const px = horiz ? ex + mid : ex, pz = horiz ? ez : ez + mid;
-        addBox(group, horiz ? len : WALL_T, WALL_H, horiz ? WALL_T : len, px, WALL_H / 2, pz, wm);
-        // glowing strip at the inner foot of the wall
-        const lx = px - nx * (WALL_T / 2 + 0.006), lz = pz - nz * (WALL_T / 2 + 0.006);
-        addBox(group, horiz ? len * 0.9 : 0.012, 0.025, horiz ? 0.012 : len * 0.9, lx, 0.05, lz, led, false);
-      }
-      if (e !== 'w' && !connected(c, d)) {
-        // puzzle shape: an exit is a rounded TAB sticking out of the wall, an entrance a NOTCH cut into the floor
-        const outward = Math.atan2(nx, nz);              // yaw that points away from the room
-        if (e === 'o') {
-          const tm = opts.ghostMat || mat('tab|' + race, () => new THREE.MeshStandardMaterial({ color: col(window.Art.pal(race).rim), roughness: 0.5, metalness: 0.3 }));
-          const tab = new THREE.Mesh(new THREE.CylinderGeometry(DOOR * 0.26, DOOR * 0.26, 0.05, 24, 1, false, -Math.PI / 2, Math.PI), tm);
-          tab.position.set(cx + nx * 0.5, 0.025, cz + nz * 0.5); tab.rotation.y = outward; tab.castShadow = true; tab.receiveShadow = true;
-          group.add(tab);
-          const am = opts.ghostMat || mat('tabLed', () => new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 1.8 }));
-          const rim = new THREE.Mesh(new THREE.TorusGeometry(DOOR * 0.42, 0.008, 6, 32, Math.PI), am);
-          rim.position.set(cx + nx * 0.5, 0.072, cz + nz * 0.5); rim.rotation.set(-Math.PI / 2, 0, outward - Math.PI / 2);
-        } else {
-          const nm = opts.ghostMat || mat('notch', () => new THREE.MeshStandardMaterial({ color: 0x07090c, roughness: 1 }));
-          const notch = new THREE.Mesh(new THREE.CircleGeometry(DOOR * 0.26, 24, 0, Math.PI), nm);
-          notch.rotation.x = -Math.PI / 2; notch.rotation.z = outward + Math.PI / 2;
-          notch.position.set(cx + nx * (0.5 - WALL_T), 0.02, cz + nz * (0.5 - WALL_T));
-          group.add(notch);
-          const cm = opts.ghostMat || mat('notchLed', () => new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x22d3ee, emissiveIntensity: 1.6 }));
-          const ring = new THREE.Mesh(new THREE.TorusGeometry(DOOR * 0.42, 0.008, 6, 32, Math.PI), cm);
-          ring.position.copy(notch.position); ring.position.y = 0.024; ring.rotation.set(-Math.PI / 2, 0, outward + Math.PI / 2);
-        }
-      }
-      if (e !== 'w' && !connected(c, d) && !opts.ghostMat) {
-        // closed sliding door with an amber light: nothing is connected here yet
-        const dm = mat('door', () => new THREE.MeshStandardMaterial({ color: 0x3a4250, roughness: 0.5, metalness: 0.5 }));
-        addBox(group, horiz ? DOOR : WALL_T * 0.6, WALL_H * 0.92, horiz ? WALL_T * 0.6 : DOOR, ex, WALL_H * 0.46, ez, dm);
-        const am = mat('amber', () => new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 2 }));
-        addBox(group, horiz ? DOOR * 0.8 : 0.02, 0.03, horiz ? 0.02 : DOOR * 0.8, ex - nx * WALL_T * 0.35, WALL_H * 0.8, ez - nz * WALL_T * 0.35, am, false);
-      }
-    }
-  }
 }
 
 function buildSolar(group, p, race) {
@@ -415,12 +373,11 @@ const PROP = {
     box(g, w * 0.8, 0.03, d * 0.8, 0, 0.295, 0, pm(shadeHex(c, 0.15).getStyle(), { metalness: 0.5 }));
   },
   screen(g, p) {
-    const w = Math.max(p.w, p.h), d = Math.min(p.w, p.h), alongX = p.w >= p.h;
+    const w = Math.max(p.w, p.h), alongX = p.w >= p.h;
     const s = new THREE.Group(); if (!alongX) s.rotation.y = Math.PI / 2; g.add(s);
     box(s, w, 0.22, 0.03, 0, 0.17, 0, pm('#0f172a'));
     box(s, w * 0.92, 0.18, 0.004, 0, 0.17, 0.017, glowMat('#6366f1'));
     box(s, 0.03, 0.06, 0.03, 0, 0.03, 0, pm('#334155'));
-    void d;
   },
   sink(g, p) {
     box(g, p.w, 0.16, p.h * 0.8, 0, 0.08, -p.h * 0.1, pm('#e6e2dc'));
@@ -578,11 +535,6 @@ function buildCorridor(fg, localEdges, race, floorMat, opts, matedLocal) {
 function glassMat() { return mat('glass', () => new THREE.MeshStandardMaterial({ color: 0xd6ecff, transparent: true, opacity: 0.17, roughness: 0.05, metalness: 0.2, depthWrite: false, side: THREE.DoubleSide })); }
 function frameLineMat() { return mat('frameLine', () => new THREE.LineBasicMaterial({ color: 0xe6edf5, transparent: true, opacity: 0.6 })); }
 function metalMat() { return mat('ribMetal', () => new THREE.MeshStandardMaterial({ color: 0xc3c8cf, metalness: 0.75, roughness: 0.35 })); }
-function ringMat(kind) {
-  return kind === 'o'
-    ? mat('ringOut', () => new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0xf59e0b, emissiveIntensity: 1.8 }))
-    : mat('ringIn', () => new THREE.MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x22d3ee, emissiveIntensity: 1.8 }));
-}
 let geoLines = null;
 function geodesicLines() {
   if (geoLines) return geoLines;
@@ -594,7 +546,6 @@ function geodesicLines() {
   geoLines = new THREE.BufferGeometry(); geoLines.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3));
   return geoLines;
 }
-const hemiGeo = new THREE.SphereGeometry(1, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2);
 // open dome: only the lower band, top cut away so you look straight into the room
 const OPEN = 0.95, openGeo = new THREE.SphereGeometry(1, 40, 10, 0, Math.PI * 2, OPEN, Math.PI / 2 - OPEN);
 
@@ -615,26 +566,6 @@ function buildDome(group, cx, cz, rx, rz, opts) {
   const base = new THREE.Mesh(new THREE.TorusGeometry(1, 0.035 / Math.min(rx, rz), 8, 64), opts.ghostMat || metalMat());
   base.rotation.x = Math.PI / 2; base.position.set(cx, 0.02, cz); base.scale.set(rx, rz, 1); base.castShadow = true;
   group.add(base);
-}
-
-// airlock tube on a doorway: exits stick out with an amber ring, entrances sit inward with a cyan ring
-function buildAirlock(group, x, z, nx, nz, kind, opts) {
-  const R = 0.11, L = 0.2, off = kind === 'o' ? 0.07 : -0.05;
-  const g = new THREE.Group(); g.position.set(x + nx * off, R * 0.95, z + nz * off);
-  g.rotation.y = Math.atan2(nx, nz);
-  const tube = new THREE.Mesh(new THREE.CylinderGeometry(R, R, L, 24, 1, true), opts.ghostMat || metalMat());
-  tube.rotation.x = Math.PI / 2; tube.castShadow = true; g.add(tube);
-  const win = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.01, R * 1.01, L * 0.4, 24, 1, true, -0.6, 1.2), opts.ghostMat || mat('lockWin', () => new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.5, roughness: 0.2 })));
-  win.rotation.x = Math.PI / 2; g.add(win);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(R * 1.08, 0.016, 8, 32), ringMat(kind));
-  ring.position.z = L / 2 * (kind === 'o' ? 1 : -1) + (kind === 'o' ? 0 : L); g.add(ring);
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(R * 1.1, 0.02, 8, 32), opts.ghostMat || metalMat());
-  collar.position.z = -L / 2; g.add(collar);
-  if (kind === 'i') { // dark open hatch you can walk into
-    const hatch = new THREE.Mesh(new THREE.CircleGeometry(R * 0.95, 24), opts.ghostMat || mat('hatch', () => new THREE.MeshStandardMaterial({ color: 0x05070a, roughness: 1, side: THREE.DoubleSide })));
-    hatch.position.z = L / 2 + 0.001; g.add(hatch);
-  }
-  group.add(g);
 }
 
 // hallway arms as half-round glass tubes with metal ribs, plus a small hub dome in the middle (local frame)
@@ -773,7 +704,7 @@ const T3 = {
   },
   antimatter(g) { for (const x of [-0.5, 0.5]) { const core = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), glowMat('#f0abfc')); core.position.set(x, 0.22, 0); g.add(core); for (let k = 0; k < 2; k++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.012, 8, 40), glowMat('#ec4899')); r.position.set(x, 0.22, 0); r.rotation.set(k * 1.2, k, 0); g.add(r); spin(r, 1.4 + k, 0.8, 0); } cyl(g, 0.12, 0.15, 0.08, x, 0.04, 0, pm('#475569', { metalness: 0.6 })); } },
   small_storage(g) { for (const [x, z] of [[-0.6, -0.15], [-0.35, 0.15], [0.35, -0.15], [0.6, 0.15]]) { box(g, 0.2, 0.16, 0.2, x, 0.08, z, pm('#9a7b4f', { roughness: 0.85 })); box(g, 0.2, 0.12, 0.2, x, 0.22, z, pm('#64748b')); } },
-  star_meal(g) { const p = cyl(g, 0.05, 0.05, 0.25, 0, 0.3, 0, pm('#94a3b8', { metalness: 0.6 })); void p; const st = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), glowMat('#facc15')); st.position.set(0, 0.5, 0); g.add(st); spin(st, 1.5); },
+  star_meal(g) { cyl(g, 0.05, 0.05, 0.25, 0, 0.3, 0, pm('#94a3b8', { metalness: 0.6 })); const st = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), glowMat('#facc15')); st.position.set(0, 0.5, 0); g.add(st); spin(st, 1.5); },
   sunny_bar(g) { box(g, 0.5, 0.18, 0.12, 0, 0.09, -0.22, pm('#7c2d12')); for (let i = 0; i < 5; i++) cyl(g, 0.018, 0.018, 0.08, -0.2 + i * 0.1, 0.22, -0.24, glowMat(['#f59e0b', '#22d3ee', '#a3e635', '#f472b6', '#fde047'][i])); const sun = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 12), glowMat('#fbbf24')); sun.position.set(0, 0.45, 0); g.add(sun); spin(sun, 0, 0, 0, 0.03); },
   galaxy_zoo(g) { const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.3, 24), pm('#a5f3fc', { transparent: true, opacity: 0.35 })); tank.position.y = 0.16; g.add(live(tank)); const c = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), glowMat('#a3e635')); c.position.y = 0.16; g.add(c); spin(c, 2, 0, 0, 0.05); },
   mim(g) { box(g, 0.24, 0.3, 0.12, 0, 0.15, 0, pm('#1e293b')); box(g, 0.2, 0.14, 0.01, 0, 0.2, 0.065, glowMat('#22d3ee')); },
@@ -841,7 +772,6 @@ function buildPiece(st, p, grid, opts = {}) {
   if (!opts.ghostMat) buildType3D(fg, p.type);
   group.add(fg);
   if (!corridor) buildColonyRoom(group, cells, opts, p.type === 'landing', connected);
-  void connected;
   return group;
 }
 
@@ -906,7 +836,7 @@ let gridGroup = null, gridKey = '';
 function buildGrid(st) {
   const key = st.w + 'x' + st.h + '|' + st.mask.join('');
   if (key === gridKey) return; gridKey = key;
-  if (gridGroup) scene.remove(gridGroup);
+  if (gridGroup) { scene.remove(gridGroup); disposeTree(gridGroup); }
   const inner = [], edge = [];
   const on = (x, y) => x >= 0 && y >= 0 && x < st.w && y < st.h && st.mask[y * st.w + x];
   const X = (x) => x - st.w / 2, Z = (y) => y - st.h / 2;
@@ -925,7 +855,7 @@ function buildGrid(st) {
 }
 function rebuild(st) {
   buildGrid(st);
-  while (root.children.length) root.remove(root.children[0]);
+  while (root.children.length) { const c = root.children[0]; root.remove(c); disposeTree(c); }
   anims.length = 0; spinQueue.length = 0;
   const grid = new Map();
   for (const p of st.placed) MI.absCells(p.type, p.x, p.y, p.rot).forEach((c) => grid.set(c.y * W + c.x, { p, c }));
@@ -947,7 +877,7 @@ function setGhost(st, ghost) {
   const sig = ghost ? [ghost.type, ghost.x, ghost.y, ghost.rot, ghost.ok].join(',') : '';
   if (sig === ghostSig) return;
   ghostSig = sig;
-  if (ghostGroup) { scene.remove(ghostGroup); ghostGroup = null; }
+  if (ghostGroup) { scene.remove(ghostGroup); disposeTree(ghostGroup); ghostGroup = null; }
   if (!ghost) return;
   const gm = new THREE.MeshStandardMaterial({ color: ghost.ok ? 0x4ade80 : 0xf87171, transparent: true, opacity: 0.45, emissive: ghost.ok ? 0x14532d : 0x7f1d1d });
   const fake = { id: -1, type: ghost.type, owner: st.you, x: ghost.x, y: ghost.y, rot: ghost.rot };
@@ -1046,10 +976,17 @@ function flyStep(t) {
 function setVisible(v) { if (renderer) renderer.domElement.style.display = v ? 'block' : 'none'; }
 
 function setFlat(v) { flat = !!v; }
+
+// ---------- overlays (power marks, fit spots, score links, player highlight) ----------
+// world x/z of the middle of a board cell, and of a whole placed piece
+const cellX = (x) => x - W / 2 + 0.5, cellZ = (y) => y - H / 2 + 0.5;
+function pieceCenter(q) { const cs = MI.absCells(q.type, q.x, q.y, q.rot); return new THREE.Vector3(cellX(cs.reduce((a, c) => a + c.x, 0) / cs.length), 0, cellZ(cs.reduce((a, c) => a + c.y, 0) / cs.length)); }
+// a flat mesh lying on the ground (planes and rings are made standing up)
+function flatMesh(geo, m, x, y, z) { const t = new THREE.Mesh(geo, m); t.rotation.x = -Math.PI / 2; t.position.set(x, y, z); return t; }
 // light up a set of buildings (power hover)
 let markGroup = null;
 function markIds(ids, color, labels) {
-  if (markGroup) { scene.remove(markGroup); markGroup = null; }
+  if (markGroup) { scene.remove(markGroup); disposeTree(markGroup); markGroup = null; }
   if (!ids || !ids.length || !lastSt) return;
   markGroup = new THREE.Group();
   const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4, depthWrite: false });
@@ -1057,9 +994,9 @@ function markIds(ids, color, labels) {
   for (const p of lastSt.placed) {
     if (!ids.includes(p.id)) continue;
     const cells = MI.absCells(p.type, p.x, p.y, p.rot);
-    for (const k of cells) { const t = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.96), m); t.rotation.x = -Math.PI / 2; t.position.set(k.x - W / 2 + 0.5, 0.02, k.y - H / 2 + 0.5); markGroup.add(t); }
+    for (const k of cells) markGroup.add(flatMesh(new THREE.PlaneGeometry(0.96, 0.96), m, cellX(k.x), 0.02, cellZ(k.y)));
     // one stick per building with its value on a tag at the top
-    const cx = cells.reduce((a, k) => a + k.x, 0) / cells.length - W / 2 + 0.5, cz = cells.reduce((a, k) => a + k.y, 0) / cells.length - H / 2 + 0.5;
+    const { x: cx, z: cz } = pieceCenter(p);
     const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.1, 6), new THREE.MeshBasicMaterial({ color })); stick.position.set(cx, 0.55, cz); markGroup.add(stick);
     const txt = labels && labels[p.id] != null ? String(labels[p.id]) : '';
     if (txt) {
@@ -1078,7 +1015,7 @@ let spotGroup = null, spotSig = '';
 function setSpots(list) {
   const sig = list ? list.map((s) => s.x + ',' + s.y).join(';') : '';
   if (sig === spotSig) return; spotSig = sig;
-  if (spotGroup) { scene.remove(spotGroup); spotGroup = null; }
+  if (spotGroup) { scene.remove(spotGroup); disposeTree(spotGroup); spotGroup = null; }
   if (!list || !list.length) return;
   spotGroup = new THREE.Group();
   const fill = new THREE.MeshBasicMaterial({ color: 0x3cf096, transparent: true, opacity: 0.22, depthWrite: false });
@@ -1086,9 +1023,9 @@ function setSpots(list) {
   const seen = new Set();
   for (const s of list) {
     const k = s.x + ',' + s.y; if (seen.has(k)) continue; seen.add(k);
-    const x = s.x - W / 2 + 0.5, z = s.y - H / 2 + 0.5;
-    const t = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.86), fill); t.rotation.x = -Math.PI / 2; t.position.set(x, 0.03, z); spotGroup.add(t);
-    const o = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.36, 32), ring); o.rotation.x = -Math.PI / 2; o.position.set(x, 0.035, z); spotGroup.add(o);
+    const x = cellX(s.x), z = cellZ(s.y);
+    spotGroup.add(flatMesh(new THREE.PlaneGeometry(0.86, 0.86), fill, x, 0.03, z));
+    spotGroup.add(flatMesh(new THREE.RingGeometry(0.3, 0.36, 32), ring, x, 0.035, z));
   }
   scene.add(spotGroup);
   const t0 = performance.now();
@@ -1101,18 +1038,17 @@ function showScore(id) { linkId = id; }
 function updateLinks(st) {
   const sig = linkId == null ? '' : linkId + '|' + builtSig;
   if (sig === linkSig) return; linkSig = sig;
-  if (linkGroup) { scene.remove(linkGroup); linkGroup = null; }
+  if (linkGroup) { scene.remove(linkGroup); disposeTree(linkGroup); linkGroup = null; }
   if (linkId == null) return;
   const f = st.placed.find((q) => q.id === linkId); if (!f) return;
   const item = (st.scores.details[f.owner] || { items: [] }).items.find((x) => x.id === f.id); if (!item) return;
-  const center = (q) => { const cs = MI.absCells(q.type, q.x, q.y, q.rot); return new THREE.Vector3(cs.reduce((a, c) => a + c.x, 0) / cs.length - W / 2 + 0.5, 0, cs.reduce((a, c) => a + c.y, 0) / cs.length - H / 2 + 0.5); };
   linkGroup = new THREE.Group();
-  const from = center(f);
+  const from = pieceCenter(f);
   const gold = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.03, 8, 48), gold); ring.rotation.x = Math.PI / 2; ring.position.set(from.x, 0.05, from.z); linkGroup.add(ring);
   for (const rid of item.roomIds || []) {
     const r = st.placed.find((q) => q.id === rid); if (!r) continue;
-    const to = center(r), mid = from.clone().add(to).multiplyScalar(0.5); mid.y = 0.6 + from.distanceTo(to) * 0.18;
+    const to = pieceCenter(r), mid = from.clone().add(to).multiplyScalar(0.5); mid.y = 0.6 + from.distanceTo(to) * 0.18;
     const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(from.x, 0.35, from.z), mid, new THREE.Vector3(to.x, 0.35, to.z));
     linkGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 32, 0.022, 6), new THREE.MeshBasicMaterial({ color: 0x4ade80 })));
     const rr = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 8, 40), new THREE.MeshBasicMaterial({ color: 0x4ade80 })); rr.rotation.x = Math.PI / 2; rr.position.set(to.x, 0.05, to.z); linkGroup.add(rr);
@@ -1126,7 +1062,7 @@ function highlight(owner) { hlOwner = owner; }
 function updateHighlight(st) {
   const sig = hlOwner == null ? '' : hlOwner + '|' + builtSig;
   if (sig === hlSig) return; hlSig = sig;
-  if (hlGroup) { scene.remove(hlGroup); hlGroup = null; }
+  if (hlGroup) { scene.remove(hlGroup); disposeTree(hlGroup); hlGroup = null; }
   if (hlOwner == null || !st.players[hlOwner]) return;
   const c = col(MI.COLORS[st.players[hlOwner].color].hex);
   const m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.55, depthWrite: false });
@@ -1135,8 +1071,8 @@ function updateHighlight(st) {
   for (const p of st.placed) {
     if (p.owner !== hlOwner) continue;
     for (const k of MI.absCells(p.type, p.x, p.y, p.rot)) {
-      const x = k.x - W / 2 + 0.5, z = k.y - H / 2 + 0.5;
-      const tile = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), m); tile.rotation.x = -Math.PI / 2; tile.position.set(x, 0.006, z); hlGroup.add(tile);
+      const x = cellX(k.x), z = cellZ(k.y);
+      hlGroup.add(flatMesh(new THREE.PlaneGeometry(1, 1), m, x, 0.006, z));
       const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.9, 6), edge); beam.position.set(x, 0.45, z); hlGroup.add(beam);
       const cap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), edge); cap.position.set(x, 0.92, z); hlGroup.add(cap);
     }
@@ -1189,6 +1125,7 @@ function renderSnap(g, wPx, hPx) {
   snapCam.position.set(ctr.x + r * 0.35, r * 1.35, ctr.z + r * 0.9); snapCam.lookAt(ctr.x, 0.05, ctr.z);
   snapR.render(snapScene, snapCam);
   snapScene.remove(g, ground);
+  disposeTree(g); disposeTree(ground);
   const out = document.createElement('canvas'); out.width = snapR.domElement.width; out.height = snapR.domElement.height;
   out.getContext('2d').drawImage(snapR.domElement, 0, 0);
   out.style.cssText = 'width:' + wPx + 'px;height:' + hPx + 'px;display:block;margin:0 auto 6px;border-radius:10px;background:radial-gradient(circle at 50% 40%, #1d2b25, #050807)';

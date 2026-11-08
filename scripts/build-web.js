@@ -28,6 +28,7 @@ var require = function (p) {
   return window.MI;
 };
 `;
-fs.writeFileSync(path.join(out, 'game-local.js'), `(function () {\n${shim}\n${gameSrc}\nwindow.MIGame = module.exports.Game;\n})();\n`);
+fs.writeFileSync(path.join(out, 'game-local.js'), `(function () {\n${shim}\n${gameSrc}\nwindow.MIGame = module.exports.Game;
+window.MIRooms = module.exports.Rooms;\n})();\n`);
 
 console.log('Static site built in ./site (game server: ' + server + ')');

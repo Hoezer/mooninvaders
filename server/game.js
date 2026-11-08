@@ -10,7 +10,7 @@ const MAX_PLAYERS = 4;
 // every race has a fixed colour
 const RACE_COLOR = { lustroms: 'blue', humans: 'lilac', machines: 'orange', bozob: 'purple' };
 const BOT_LABEL = { lustroms: 'Lustroms', humans: 'Humans', machines: 'Machines', bozob: 'boZob' };
-const STARTER = ['hall_corner', 'hall_cross_in', 'solar', 'room_in'];
+const STARTER = ['hall_corner', 'hall_cross_in', 'solar', 'room_out'];
 
 class Game {
   constructor(code) {
@@ -87,6 +87,27 @@ class Game {
     Object.assign(this.players[idx], { race, color: RACE_COLOR[race] || this.players[idx].color, local: true });
   }
 
+  // play again: back to the lobby with the same room and line-up, everything else fresh.
+  // In a watched AI game the host was taken out of the players at the start, so a watcher seat comes back first.
+  rematch(watcher) {
+    if (this.status === 'lobby') throw new Error('Already in the lobby');
+    const keep = ['token', 'name', 'race', 'color', 'bot', 'local', 'watch', 'connected'];
+    this.players = this.players.map((p) => {
+      const q = { capsules: 0, pad: [], storage: [], orders: [], supply: {} };
+      for (const k of keep) if (k in p) q[k] = p[k];
+      return q;
+    });
+    let hostIdx = 0;
+    if (watcher) {
+      this.players.unshift({ token: crypto.randomBytes(12).toString('hex'), name: 'Host', race: null, color: null, watch: true,
+        capsules: 0, pad: [], storage: [], orders: [], supply: {}, connected: true });
+    }
+    Object.assign(this, { status: 'lobby', placed: [], turn: 0, round: 1, phase: 'build', lastRoll: null, log: [],
+      nextId: 1, nextUid: 1, placedThisRound: false, idleRounds: 0, endReason: null, specToken: null });
+    this.addLog('New game in the same room.');
+    return hostIdx;
+  }
+
   // the device that controls player i also controls the local players while it is their turn
   actor(idx) {
     const cur = this.players[this.turn];
@@ -104,11 +125,13 @@ class Game {
   // Free doorways a player can still build onto (own pieces' open i/o edges facing empty moon cells).
   botOpenDoors(i) {
     const occ = new Set();
-    for (const q of this.placed) for (const c of R.absCells(q.type, q.x, q.y, q.rot)) occ.add(c.y * this.w + c.x);
+    // pieces never move, so a cached q.abs is always valid
+    const cells = (q) => q.abs || (q.abs = R.absCells(q.type, q.x, q.y, q.rot));
+    for (const q of this.placed) for (const c of cells(q)) occ.add(c.y * this.w + c.x);
     let n = 0;
     for (const q of this.placed) {
       if (q.owner !== i && !(q.owner === -1)) continue;
-      for (const c of R.absCells(q.type, q.x, q.y, q.rot)) {
+      for (const c of cells(q)) {
         for (let d = 0; d < 4; d++) {
           const e = c.e[d]; if (e !== 'i' && e !== 'o') continue;
           const nx = c.x + R.DIRS[d][0], ny = c.y + R.DIRS[d][1];
@@ -122,14 +145,13 @@ class Game {
 
   // How good is it for player i to put `type` at spot sp? Higher is better.
   botValue(i, type, sp, base) {
+    // the trial piece is a fresh object; the cached cells of the real pieces stay valid
     this.placed.push({ id: -1, type, owner: i, x: sp.x, y: sp.y, rot: sp.rot });
-    for (const q of this.placed) delete q.abs;
     const sc = R.computeScores(this);
     const mine = sc.details[i].total;
     let opp = 0; sc.details.forEach((d, j) => { if (j !== i) opp += d.total; });
     const doors = this.botOpenDoors(i);
     this.placed.pop();
-    for (const q of this.placed) delete q.abs;
     // keep the base compact so guest rooms stay within 4 hallways of facilities
     const own = this.placed.filter((q) => q.owner === i);
     let cx = this.w / 2, cy = this.h / 2;
@@ -188,9 +210,7 @@ class Game {
     const pw = R.computePower(this, i);
     const pendingPower = p.orders.reduce((s, o) => s + PIECES[o.type].power, 0);
     const powerLeft = pw.supply + pendingPower - pw.demand;
-    const spent = p.orders.reduce((s, o) => s + PIECES[o.type].cost, 0);
     const wallet = p.capsules;
-    void spent;
     const mine = this.placed.filter((q) => q.owner === i);
     const ordered = (k) => p.orders.filter((o) => PIECES[o.type].kind === k).length;
     const count = (k) => mine.filter((q) => PIECES[q.type].kind === k).length + ordered(k);
@@ -209,7 +229,7 @@ class Game {
       if (d.kind === 'facility') {
         if (-d.power > powerLeft) v = d.points * 0.5;               // can't power it yet
         else { const b = this.botBestSpot(i, t); v = b ? 6 + d.points * 3 + Math.max(0, b.gain) * 0.4 : 0; }
-        if (d.race && !mine.some((q) => PIECES[q.type].kind === 'resource' && PIECES[q.type].race === d.race) && !p.orders.some((o) => PIECES[o.type].kind === 'resource')) v *= 0.4;
+        if (!this.canOrderType(i, t)) v = 0;                         // needs a built race resource first
       } else if (d.kind === 'room') {
         const b = this.botBestSpot(i, t);
         v = 5 + (b ? Math.max(0, b.gain) * 0.6 : 0) + (count('facility') > count('room') ? 6 : 0);
@@ -335,10 +355,17 @@ class Game {
     this.addLog(`${p.name} drew ${gain} capsules.`);
   }
 
+  // a race facility can only be ordered once you have built one of your race resources
+  canOrderType(i, type) {
+    const d = PIECES[type];
+    return !(d && d.kind === 'facility' && d.race) || this.placed.some((q) => q.owner === i && PIECES[q.type].kind === 'resource' && PIECES[q.type].race === d.race);
+  }
+
   order(i, type) {
     const p = this.me(i);
     const d = PIECES[type];
     if (!d || !(p.supply[type] > 0)) throw new Error('None left of that piece');
+    if (!this.canOrderType(i, type)) throw new Error('Build one of your race resources first');
     if (p.capsules < d.cost) throw new Error('Not enough capsules');
     p.capsules -= d.cost; p.supply[type]--;
     p.orders.push({ uid: this.nextUid++, type });
@@ -380,9 +407,9 @@ class Game {
     this.addLog(`Game over: ${why}`);
   }
 
-  view(forIdx) {
-    for (const q of this.placed) delete q.abs;
-    const scores = R.computeScores(this);
+  // scores can be passed in so a broadcast computes them once for all connections
+  view(forIdx, scores) {
+    if (!scores) { for (const q of this.placed) delete q.abs; scores = R.computeScores(this); }
     return {
       code: this.code, status: this.status, you: forIdx, botDelay: this.botDelay || 600, endReason: this.endReason || null,
       w: this.w, h: this.h, mask: this.mask, placed: this.placed.map(({ abs, ...q }) => q),
@@ -401,4 +428,150 @@ class Game {
   }
 }
 
-module.exports = { Game };
+
+// ---- Rooms: the message protocol, shared by the Node server (server/index.js) and the browser's
+// local mode (public/local-server.js). A connection is any object { game, idx }; the host supplies
+//   send(conn, msg)   deliver one message object to a connection
+//   conns()           every current connection
+//   stopWhenAlone     stop computer turns when nobody is connected to the game (local mode)
+//   texts             optional error texts: { noRoom, noResume }
+const BOT_NAMES = ['HAL-9', 'Lunatron', 'Crater Bot', 'Moonbeam AI'];
+
+class Rooms {
+  constructor(host) {
+    this.host = host;
+    this.texts = Object.assign({ noRoom: 'Room not found', noResume: 'Could not rejoin that game' }, host.texts);
+    this.games = new Map();
+  }
+
+  newCode() {
+    const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    let c;
+    do c = Array.from({ length: 4 }, () => A[Math.floor(Math.random() * A.length)]).join(''); while (this.games.has(c));
+    return c;
+  }
+
+  connsOf(game) { return [...this.host.conns()].filter((c) => c.game === game); }
+
+  // attach a connection to a seat (-1 = watching) and tell it so
+  attach(conn, game, idx, token) {
+    conn.game = game; conn.idx = idx;
+    this.host.send(conn, { t: 'joined', code: game.code, token });
+  }
+
+  broadcast(game) {
+    const conns = this.connsOf(game);
+    if (this.host.stopWhenAlone && !conns.length) return;
+    this.scheduleBot(game);
+    if (!conns.length) return;
+    for (const q of game.placed) delete q.abs;
+    const scores = R.computeScores(game);
+    for (const c of conns) this.host.send(c, { t: 'state', state: game.view(c.idx >= 0 ? game.actor(c.idx) : c.idx, scores) });
+  }
+
+  scheduleBot(game) {
+    if (game.botTimer || game.status !== 'playing' || !game.players[game.turn].bot) return;
+    game.botTimer = setTimeout(() => {
+      game.botTimer = null;
+      try { game.botStep(); } catch (e) { console.error('Bot error:', e.message); try { game.endTurn(game.turn); } catch (_) { game.phase = 'order'; } }
+      this.broadcast(game);
+    }, Math.max(game.botDelay || 600, (game.introUntil || 0) - Date.now()));
+  }
+
+  handle(conn, m) {
+    try { this.dispatch(conn, m); } catch (e) { this.host.send(conn, { t: 'error', msg: e.message }); }
+  }
+
+  dispatch(conn, m) {
+    if (m.t === 'create' && m.spectate) {
+      // 4 computer players, the creator watches
+      const code = this.newCode(), game = new Game(code);
+      this.games.set(code, game);
+      game.specToken = crypto.randomBytes(12).toString('hex');
+      for (const n of BOT_NAMES) { const i = game.join(n); game.players[i].bot = true; }
+      game.start(0);
+      this.attach(conn, game, -1, game.specToken);
+      return this.broadcast(game);
+    }
+    if (m.t === 'create' || m.t === 'join') {
+      const code = m.t === 'create' ? this.newCode() : String(m.code || '').toUpperCase();
+      if (m.t === 'create') this.games.set(code, new Game(code));
+      const game = this.games.get(code);
+      if (!game) throw new Error(this.texts.noRoom);
+      if (m.t === 'join' && game.players[0] && game.players[0].watch) throw new Error('This room is set up as an AI game to watch');
+      const idx = game.join(m.name);
+      // a new room starts as you against the computer: you get a random race, plus one computer race
+      if (m.t === 'create') {
+        const all = Object.keys(RACES);
+        game.pick(idx, all[Math.floor(Math.random() * all.length)]);
+        const free = all.filter((r) => !game.players.some((p) => p.race === r));
+        game.addBot(0, free[Math.floor(Math.random() * free.length)]);
+      }
+      this.attach(conn, game, idx, game.players[idx].token);
+      return this.broadcast(game);
+    }
+    if (m.t === 'resume') {
+      const game = this.games.get(String(m.code || '').toUpperCase());
+      if (game && game.specToken && m.token === game.specToken) { this.attach(conn, game, -1, m.token); return this.broadcast(game); }
+      const idx = game ? game.players.findIndex((p) => p.token === m.token) : -1;
+      if (idx < 0) throw new Error(this.texts.noResume);
+      game.players[idx].connected = true;
+      this.attach(conn, game, idx, m.token);
+      return this.broadcast(game);
+    }
+
+    const game = conn.game;
+    if (!game) throw new Error('Join a game first');
+    const idx = game.actor(conn.idx);
+    switch (m.t) {
+      // lobby
+      case 'pick': game.pick(idx, m.race, m.color); break;
+      case 'start': if (game.start(idx)) this.attach(conn, game, -1, game.specToken); break;
+      case 'watch': game.watch(idx, !!m.on); break;
+      case 'addBot': game.addBot(idx, m.race); break;
+      case 'addLocal': game.addLocal(idx, m.race, m.name); break;
+      case 'rename': game.rename(idx, m.idx | 0, m.name); break;
+      case 'leave':
+        if (game.status === 'lobby' && idx > 0) { game.players.splice(idx, 1); for (const c of this.connsOf(game)) if (c.idx > idx) c.idx--; }
+        conn.game = null; break;
+      case 'removeBot': {
+        const k = m.idx | 0; game.removeBot(idx, k);
+        // keep every connection pointing at the right seat; the removed online player goes back to the start
+        for (const c of this.connsOf(game)) {
+          if (c.idx === k) { c.game = null; this.host.send(c, { t: 'kicked' }); }
+          else if (c.idx > k) c.idx--;
+        }
+        break;
+      }
+      // host controls
+      case 'finishNow':
+        if (conn.idx > 0) throw new Error('Only the host can end the game');
+        if (game.status !== 'playing') throw new Error('Game is not running');
+        game.finish('Ended early by the host.'); break;
+      case 'rematch': {
+        if (conn.idx > 0) throw new Error('Only the host can start a new game');
+        const watcher = conn.idx < 0;
+        clearTimeout(game.botTimer); game.botTimer = null;
+        game.rematch(watcher);
+        if (watcher) this.attach(conn, game, 0, game.players[0].token);
+        break;
+      }
+      case 'speed':
+        if (conn.idx > 0) throw new Error('Only the host can change the speed');
+        game.botDelay = Math.max(40, Math.min(2000, m.ms | 0)); break;
+      // turn actions
+      case 'place': game.place(idx, m.uid, m.x, m.y, m.rot); break;
+      case 'store': game.store(idx, m.uid); break;
+      case 'retrieve': game.retrieve(idx, m.uid); break;
+      case 'discard': game.discard(idx, m.uid); break;
+      case 'doneBuild': game.doneBuild(idx); break;
+      case 'order': game.order(idx, m.type); break;
+      case 'cancelOrder': game.cancelOrder(idx, m.uid); break;
+      case 'endTurn': game.endTurn(idx); break;
+      default: throw new Error('Unknown action');
+    }
+    this.broadcast(game);
+  }
+}
+
+module.exports = { Game, Rooms };

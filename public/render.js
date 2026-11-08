@@ -285,21 +285,6 @@
     return geo;
   }
 
-  function drawMini(canvas, type, color, rot = 0) {
-    const def = MI.PIECES[type];
-    const cells = MI.absCells(type, 0, 0, rot);
-    const minX = Math.min(...cells.map((c) => c.x)), minY = Math.min(...cells.map((c) => c.y));
-    const cw = Math.max(...cells.map((c) => c.x)) - minX + 1, ch = Math.max(...cells.map((c) => c.y)) - minY + 1;
-    const dpr = window.devicePixelRatio || 1;
-    const W = canvas.width / dpr, H = canvas.height / dpr;
-    const s = Math.floor(Math.min(W / (cw + 0.6), H / (ch + 0.6)));
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    const ox = (W - cw * s) / 2 - minX * s, oy = (H - ch * s) / 2 - minY * s;
-    drawPiece(ctx, type, cells, ox, oy, s, color, { rot, noLabel: def.kind === 'hallway' });
-  }
-
   // ---------- realistic moon texture (generated once) ----------
   let moonCache = null;
   function moonTexture() {
@@ -408,5 +393,5 @@
     draw(); addEventListener('resize', draw);
   }
 
-  window.Render = { animPiece, drawBoard, drawMini, stars, moonTexture };
+  window.Render = { animPiece, drawBoard, stars, moonTexture };
 })();

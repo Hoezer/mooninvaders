@@ -52,20 +52,6 @@
       else if (k < 0.56) { c.fillStyle = P.led; c.globalAlpha = 0.8; c.fillRect(px + q * 0.1, py + q * 0.46, q * 0.8, u * 0.3); c.globalAlpha = 1; }
     }
   }
-  // glass floor panel looking down into space (with a slice of Earth)
-  function spaceGlass(c, x, y, w, h, u, r) {
-    c.save(); rr(c, x, y, w, h, u * 1.5); c.clip();
-    c.fillStyle = lin(c, x, y, x + w, y + h, ['#020617', '#0b1f4d']); c.fillRect(x, y, w, h);
-    for (let i = 0; i < 40; i++) { c.fillStyle = `rgba(255,255,255,${0.3 + r() * 0.7})`; c.fillRect(x + r() * w, y + r() * h, r() > 0.9 ? 1.5 : 0.8, r() > 0.9 ? 1.5 : 0.8); }
-    const ex = x + w * 0.85, ey = y + h * 1.1, er = Math.max(w, h) * 0.6;
-    c.fillStyle = rad(c, ex - er * 0.3, ey - er * 0.4, er, ['#7cc4ff', '#1d4ed8', '#0b1e5b']); circle(c, ex, ey, er); c.fill();
-    c.fillStyle = 'rgba(34,197,94,.55)'; c.beginPath(); c.ellipse(ex - er * 0.35, ey - er * 0.6, er * 0.25, er * 0.12, 0.5, 0, TAU); c.fill();
-    c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.ellipse(ex - er * 0.1, ey - er * 0.75, er * 0.3, er * 0.05, -0.2, 0, TAU); c.fill();
-    c.fillStyle = 'rgba(255,255,255,.12)'; c.beginPath(); c.moveTo(x, y); c.lineTo(x + w * 0.4, y); c.lineTo(x, y + h * 0.4); c.fill();
-    c.restore();
-    c.strokeStyle = '#e5e7eb'; c.lineWidth = u * 0.7; rr(c, x, y, w, h, u * 1.5); c.stroke();
-    c.save(); c.strokeStyle = P.led; c.shadowColor = P.led; c.shadowBlur = u * 2; c.lineWidth = u * 0.3; rr(c, x + u * 0.6, y + u * 0.6, w - u * 1.2, h - u * 1.2, u); c.stroke(); c.restore();
-  }
 
   // ---------- floors ----------
   const FLOOR = {
@@ -353,15 +339,6 @@
     for (const [ax, ay] of [[t, t], [w - t, t], [t, h - t], [w - t, h - t]]) { c.beginPath(); c.moveTo(ax, ay); c.lineTo(ax < w / 2 ? T : w - T, ay < h / 2 ? T : h - T); c.stroke(); }
     return T;
   }
-
-  // ---------- theme per race ----------
-  const THEME = {
-    humans: (c, x, y, w, h, u, r) => FLOOR.wood(c, x, y, w, h, u, r, '#b07f50'),
-    lustroms: (c, x, y, w, h, u, r) => FLOOR.pearl(c, x, y, w, h, u, r),
-    machines: (c, x, y, w, h, u, r) => FLOOR.metal(c, x, y, w, h, u, r),
-    bozob: (c, x, y, w, h, u, r) => FLOOR.slime(c, x, y, w, h, u, r),
-    shared: (c, x, y, w, h, u, r) => FLOOR.tile(c, x, y, w, h, u, r, '#c9c4bb'),
-  };
 
   // ---------- room contents. (c, x, y, w, h, u, r) = interior box inside the walls ----------
   const ROOM = {
@@ -815,7 +792,6 @@
     cache.set(key, cv);
     return cv;
   }
-  const rimColor = (race) => (PAL[race] || PAL.shared).rim;
 
   const passage = (race) => shade((PAL[race] || PAL.shared).base, -0.15);
   const led = (race) => (PAL[race] || PAL.shared).led;
@@ -861,5 +837,5 @@
     return props.get(`F|${type}|${R}|${cols}x${rows}`) || [];
   }
   const pal = (race) => PAL[race] || PAL.shared;
-  window.Art = { get, getFloor, getProps, rimColor, passage, led, pal };
+  window.Art = { get, getFloor, getProps, passage, led, pal };
 })();

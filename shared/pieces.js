@@ -1,5 +1,5 @@
 // Piece catalogue for Moon Invaders.
-// Data taken from docs/Docs/Moon-Invaders Race.xls (capsules, power, points, count per player)
+// Piece data per race: capsules, power, points and count per player
 // Edges per cell side in order [North, East, South, West]:
 //   'w' = wall, 'i' = entrance (notch), 'o' = exit (tab), 'x' = internal side of a 2-cell piece.
 (function (exp) {
@@ -60,7 +60,7 @@
     washateria: { race: 'humans', name: 'Washateria House', kind: 'facility', cost: 2, power: -25, points: 1, count: 2, cells: one(['i', 'w', 'w', 'w']) },
   };
 
-  // Flavour texts (from docs/Docs/Resouces&facilities.doc where available)
+  // Flavour texts shown in piece tooltips
   const FLAVOR = {
     scrap: 'Always wanted a new leg? Get a wheel on your arm? Every possibility is possible. Upgrade yourself, polish your skin or be reborn so nobody recognizes you.',
     oil: 'The name says it all.',

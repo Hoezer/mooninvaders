@@ -6,9 +6,16 @@
 
   Render.stars($('stars'));
 
+  // ---------- Small helpers ----------
   function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function btn(label, fn) { const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; return b; }
+  function meIdxNow() { return st.you >= 0 ? st.you : st.turn; }
+  // capsule icon used everywhere capsules appear
+  const CAP = '<svg class="capIc" viewBox="0 0 24 24" aria-label="capsules"><defs><linearGradient id="capG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9ffd9"/><stop offset="1" stop-color="#2fd982"/></linearGradient></defs><rect x="7" y="2.5" width="10" height="17" rx="5" fill="url(#capG)" stroke="#0a5c37" stroke-width="1.2"/><circle cx="12" cy="8.5" r="2.3" fill="#0b2a1d" stroke="#e9fff4" stroke-width="1"/><path d="M7 15l-2.5 3.5h4M17 15l2.5 3.5h-4" fill="#2fd982" stroke="#0a5c37" stroke-width="1" stroke-linejoin="round"/><path d="M10 19.5h4l-2 2.5z" fill="#ffd166"/></svg>';
 
+  // ---------- Connection / messaging ----------
   function connect(onOpen) {
     ws = window.MI_SERVER === 'local' && window.LocalSocket ? new window.LocalSocket()
       : new WebSocket(window.MI_SERVER || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host));
@@ -17,7 +24,7 @@
       const m = JSON.parse(ev.data);
       if (m.t === 'joined') { store('mi_session', JSON.stringify({ code: m.code, token: m.token })); history.replaceState(null, '', '#' + m.code); }
       if (m.t === 'kicked') { store('mi_session', null); store('mi_last', null); ws.onclose = null; alertKick(); return; }
-      if (m.t === 'state') { const was = st && st.status; st = m.state; window.MI_STATE = st; capsuleFx(); handOff(); render(); if (st.status === 'playing' && st.round === 1 && (was === 'lobby' || (!was && st.placed.length <= 1))) launchIntro(); }
+      if (m.t === 'state') { const was = st && st.status; st = m.state; window.MI_STATE = st; capsuleFx(); if (st.status === 'playing' && st.round === 1 && (was === 'lobby' || (!was && st.placed.length <= 1))) launchIntro(); handOff(); render(); }
       if (m.t === 'error') {
         toast(m.msg);
         if (/rejoin/.test(m.msg)) store('mi_session', null);
@@ -43,7 +50,7 @@
     clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2800);
   }
 
-  // ---------- Lobby ----------
+  // ---------- Start screen / lobby ----------
   $('name').value = load('mi_name') || '';
   if (location.hash.length === 5) $('codeIn').value = location.hash.slice(1);
   const name = () => { const n = $('name').value.trim() || 'Commander'; store('mi_name', n); return n; };
@@ -79,7 +86,8 @@
   try { const last = JSON.parse(load('mi_last') || 'null'); if (last && !load('mi_session')) { const b = document.createElement('button'); b.id = 'resumeBtn'; b.className = 'primary'; b.textContent = 'Back to game ' + last.code; $('joinBox').prepend(b); } } catch (e) { /* ignore */ }
   document.addEventListener('click', (e) => {
     const t = e.target.closest('button'); if (!t) return;
-    if (t.id === 'newAiBtn' || t.id === 'endNewAi') watchAi();
+    if (t.id === 'newAiBtn') watchAi();
+    if (t.id === 'endAgain') { endClosed = false; send({ t: 'rematch' }); }
     if (t.dataset.speed) send({ t: 'speed', ms: +t.dataset.speed });
     if (t.dataset.finish) send({ t: 'finishNow' });
     if (t.id === 'copyCode' && st) { const done = () => { const s = t.querySelector('span'); s.textContent = 'Copied!'; t.classList.add('ok'); setTimeout(() => { s.textContent = 'Copy'; t.classList.remove('ok'); }, 1500); }; if (navigator.clipboard) navigator.clipboard.writeText(st.code).then(done, done); else done(); }
@@ -89,76 +97,6 @@
     if (t.id === 'resumeBtn') { store('mi_session', load('mi_last')); store('mi_last', null); location.reload(); }
     if (t.id === 'endClose') { endClosed = true; $('endScreen').classList.add('hidden'); }
   });
-  let endClosed = false;
-  // end screen: click a player to see exactly where the points come from
-  const endOpen = new Set();
-  function endDetail(r) {
-    const items = st.scores.details[r.i].items.slice().sort((a, b) => b.points - a.points);
-    const why = { 'no power': 'no power', 'no race resource': 'missing race resource' };
-    const lines = items.length ? items.map((it) => {
-      const d = MI.PIECES[it.type];
-      const calc = it.reason ? '<span class="bad">0 — ' + esc(why[it.reason] || it.reason) + '</span>' : d.points + ' base × (1 + ' + it.rooms + ' guest room' + (it.rooms === 1 ? '' : 's') + ')';
-      return '<div class="exLine"><span>' + esc(d.name) + '</span><span class="muted">' + calc + '</span><b>' + it.points + '</b></div>';
-    }).join('') : '<div class="muted">No facilities built — only facilities score points.</div>';
-    return '<tr class="endDetail"><td></td><td colspan="6">' + lines + '<div class="exLine total"><span>Total</span><span class="muted">' + items.length + ' facilit' + (items.length === 1 ? 'y' : 'ies') + '</span><b>' + r.total + '</b></div></td></tr>';
-  }
-  document.addEventListener('click', (e) => { const tr = e.target.closest && e.target.closest('.endRow'); if (!tr) return; const i = +tr.dataset.exp; endOpen.has(i) ? endOpen.delete(i) : endOpen.add(i); renderEnd(); });
-  // big launch moment: race lineup, countdown, then the camera flies in from space
-  function launchIntro() {
-    // show the intro only once per game (remembered in this browser)
-    const seenKey = 'mi_intro_' + st.code;
-    if (load(seenKey)) return;
-    store(seenKey, '1');
-    let el = document.getElementById('launch');
-    if (!el) { el = document.createElement('div'); el.id = 'launch'; document.body.appendChild(el); }
-    const races = st.players.map((p) => '<div class="lRace" style="--pc:' + MI.COLORS[p.color].hex + '"><img src="' + portraitURL(p.race) + '" alt=""><b>' + esc(p.name) + '</b><small>' + MI.RACES[p.race].name + '</small></div>').join('<span class="lVs">VS</span>');
-    el.innerHTML = '<div class="lStars"></div><div class="lInner"><div class="lTitle">THE COLONIZATION BEGINS</div><div class="lRaces">' + races + '</div><div class="lWho">Who lands first?</div><div class="lCount"></div></div>';
-    el.className = 'show';
-    const cnt = el.querySelector('.lCount'), who = el.querySelector('.lWho');
-    const cards = [...el.querySelectorAll('.lRace')], n = cards.length, winner = st.firstTurn != null ? st.firstTurn : st.turn;
-    // roulette: a light runs over the races, slows down and stops on the starting player
-    const hops = n * 3 + ((winner - 0 + n) % n);
-    let t = 900;
-    for (let k = 0; k <= hops; k++) {
-      const at = k % n, last = k === hops;
-      setTimeout(() => {
-        cards.forEach((c, j) => c.classList.toggle('lit', j === at));
-        if (last) { cards[at].classList.add('chosen'); who.innerHTML = '<b style="color:' + MI.COLORS[st.players[at].color].hex + '">' + esc(st.players[at].name) + '</b> lands first!'; who.classList.add('pop'); }
-      }, t);
-      t += 60 + Math.pow(k / hops, 3) * 260;
-    }
-    const start = t + 700;
-    const steps = ['3', '2', '1', 'LAUNCH!'];
-    steps.forEach((s, k) => setTimeout(() => { cnt.textContent = s; cnt.classList.remove('pop'); void cnt.offsetWidth; cnt.classList.add('pop'); }, start + k * 600));
-    setTimeout(() => { el.classList.add('out'); if (window.Render3D && Render3D.intro) Render3D.intro(); }, start + steps.length * 600);
-    setTimeout(() => { el.className = ''; el.innerHTML = ''; }, start + steps.length * 600 + 900);
-  }
-  function renderEnd() {
-    const el = $('endScreen');
-    if (st.status !== 'ended') { endClosed = false; el.classList.add('hidden'); return; }
-    if (endClosed) return;
-    el.classList.remove('hidden');
-    const rows = st.players.map((p, i) => {
-      const d = st.scores.details[i];
-      return { p, i, total: d.total, fac: d.items.length, scoring: d.items.filter((x) => x.points).length,
-        built: st.placed.filter((q) => q.owner === i).length,
-        rooms: st.placed.filter((q) => q.owner === i && MI.PIECES[q.type].kind === 'room').length,
-        best: d.items.slice().sort((a, b) => b.points - a.points)[0] };
-    }).sort((a, b) => b.total - a.total || b.built - a.built);
-    const winners = rows.filter((r) => r.total === rows[0].total);
-    const title = winners.length > 1 ? `${winners.map((r) => esc(r.p.name)).join(' & ')} share the moon!` : `${esc(winners[0].p.name)} rules the moon!`;
-    const medal = ['1', '2', '3', '4'];
-    const podOrder = [rows[1], rows[0], rows[2], rows[3]].filter(Boolean);
-    const height = (r) => 60 + 90 * (rows.length - rows.indexOf(r)) / rows.length;
-    el.innerHTML = `<div class="endCard">
-      <h2>${title}</h2><div class="why">${esc(st.endReason || 'Game over')} · ${st.round} rounds played</div>
-      <div class="podium">${podOrder.map((r) => `<div class="pod"><div class="nm">${esc(r.p.name)}</div><small>${MI.RACES[r.p.race].name}</small><div class="sc">${r.total}</div>
-        <div class="blk" style="height:${height(r)}px;background:${MI.COLORS[r.p.color].hex}">${medal[rows.indexOf(r)]}</div></div>`).join('')}</div>
-      <table class="endTable"><tr><th>#</th><th>Race</th><th class="num">Built</th><th class="num">Rooms</th><th class="num">Facilities scoring</th><th class="num">Best</th><th class="num">Score</th></tr>
-      ${rows.map((r, k) => `<tr class="endRow" data-exp="${r.i}" title="Click to see where the points come from"><td>${endOpen.has(r.i) ? '▾' : '▸'} ${k + 1}</td><td><span class="dot" style="background:${MI.COLORS[r.p.color].hex}"></span> ${esc(r.p.name)}</td><td class="num">${r.built}</td><td class="num">${r.rooms}</td><td class="num">${r.scoring}/${r.fac}</td>
-        <td class="num">${r.best && r.best.points ? `${esc(MI.PIECES[r.best.type].name)} ${r.best.points}` : '–'}</td><td class="num"><b>${r.total}</b></td></tr>${endOpen.has(r.i) ? endDetail(r) : ''}`).join('')}</table>
-      <div class="endBtns"><button id="endClose">Look at the moon</button><button id="endNewAi">New AI game</button><button id="endLobby" class="primary">Back to lobby</button></div></div>`;
-  }
   $('slots').onclick = (e) => {
     const b = e.target.closest('[data-mode]'); if (!b || b.classList.contains('on')) return;
     const idx = +b.dataset.idx, race = b.dataset.race, cur = idx >= 0 ? st.players[idx] : null;
@@ -167,8 +105,6 @@
     if (b.dataset.mode === 'local') send({ t: 'addLocal', race });
   };
 
-  // leaving a room with friends in it for an AI game: only after a check
-  const confirmLeave = () => !st || st.players.filter((p) => !p.bot).length <= 1 || window.confirm('Leave this room and start an AI game?');
   let showProfile = null;
   function renderLobby() {
     $('joinBox').classList.add('hidden'); $('roomBox').classList.remove('hidden');
@@ -283,7 +219,79 @@
     $('waitHost').classList.toggle('hidden', st.you === 0);
   }
 
-  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // ---------- Launch intro ----------
+  // big launch moment: race lineup, countdown, then the camera flies in from space
+  function launchIntro() {
+    // show the intro only once per game (remembered in this browser)
+    const seenKey = 'mi_intro_' + st.code;
+    if (load(seenKey)) return;
+    store(seenKey, '1');
+    let el = document.getElementById('launch');
+    if (!el) { el = document.createElement('div'); el.id = 'launch'; document.body.appendChild(el); }
+    const races = st.players.map((p) => '<div class="lRace" style="--pc:' + MI.COLORS[p.color].hex + '"><img src="' + portraitURL(p.race) + '" alt=""><b>' + esc(p.name) + '</b><small>' + MI.RACES[p.race].name + '</small></div>').join('<span class="lVs">VS</span>');
+    el.innerHTML = '<div class="lStars"></div><div class="lInner"><div class="lTitle">THE COLONIZATION BEGINS</div><div class="lRaces">' + races + '</div><div class="lWho">Who lands first?</div><div class="lCount"></div></div>';
+    el.className = 'show';
+    const cnt = el.querySelector('.lCount'), who = el.querySelector('.lWho');
+    const cards = [...el.querySelectorAll('.lRace')], n = cards.length, winner = st.firstTurn != null ? st.firstTurn : st.turn;
+    // roulette: a light runs over the races, slows down and stops on the starting player
+    const hops = n * 3 + ((winner - 0 + n) % n);
+    let t = 900;
+    for (let k = 0; k <= hops; k++) {
+      const at = k % n, last = k === hops;
+      setTimeout(() => {
+        cards.forEach((c, j) => c.classList.toggle('lit', j === at));
+        if (last) { cards[at].classList.add('chosen'); who.innerHTML = '<b style="color:' + MI.COLORS[st.players[at].color].hex + '">' + esc(st.players[at].name) + '</b> lands first!'; who.classList.add('pop'); }
+      }, t);
+      t += 60 + Math.pow(k / hops, 3) * 260;
+    }
+    const start = t + 700;
+    const steps = ['3', '2', '1', 'LAUNCH!'];
+    steps.forEach((s, k) => setTimeout(() => { cnt.textContent = s; cnt.classList.remove('pop'); void cnt.offsetWidth; cnt.classList.add('pop'); }, start + k * 600));
+    setTimeout(() => { el.classList.add('out'); if (window.Render3D && Render3D.intro) Render3D.intro(); }, start + steps.length * 600);
+    setTimeout(() => { el.className = ''; el.innerHTML = ''; }, start + steps.length * 600 + 900);
+  }
+
+  // ---------- End screen ----------
+  let endClosed = false;
+  // end screen: click a player to see exactly where the points come from
+  const endOpen = new Set();
+  function endDetail(r) {
+    const items = st.scores.details[r.i].items.slice().sort((a, b) => b.points - a.points);
+    const why = { 'no power': 'no power', 'no race resource': 'missing race resource' };
+    const lines = items.length ? items.map((it) => {
+      const d = MI.PIECES[it.type];
+      const calc = it.reason ? '<span class="bad">0 — ' + esc(why[it.reason] || it.reason) + '</span>' : d.points + ' × ' + it.rooms + ' guest room' + (it.rooms === 1 ? '' : 's');
+      return '<div class="exLine"><span>' + esc(d.name) + '</span><span class="muted">' + calc + '</span><b>' + it.points + '</b></div>';
+    }).join('') : '<div class="muted">No facilities built — only facilities score points.</div>';
+    return '<tr class="endDetail"><td></td><td colspan="6">' + lines + '<div class="exLine total"><span>Total</span><span class="muted">' + items.length + ' facilit' + (items.length === 1 ? 'y' : 'ies') + '</span><b>' + r.total + '</b></div></td></tr>';
+  }
+  document.addEventListener('click', (e) => { const tr = e.target.closest && e.target.closest('.endRow'); if (!tr) return; const i = +tr.dataset.exp; endOpen.has(i) ? endOpen.delete(i) : endOpen.add(i); renderEnd(); });
+  function renderEnd() {
+    const el = $('endScreen');
+    if (st.status !== 'ended') { endClosed = false; el.classList.add('hidden'); return; }
+    if (endClosed) return;
+    el.classList.remove('hidden');
+    const rows = st.players.map((p, i) => {
+      const d = st.scores.details[i];
+      return { p, i, total: d.total, fac: d.items.length, scoring: d.items.filter((x) => x.points).length,
+        built: st.placed.filter((q) => q.owner === i).length,
+        rooms: st.placed.filter((q) => q.owner === i && MI.PIECES[q.type].kind === 'room').length,
+        best: d.items.slice().sort((a, b) => b.points - a.points)[0] };
+    }).sort((a, b) => b.total - a.total || b.built - a.built);
+    const winners = rows.filter((r) => r.total === rows[0].total);
+    const title = winners.length > 1 ? `${winners.map((r) => esc(r.p.name)).join(' & ')} share the moon!` : `${esc(winners[0].p.name)} rules the moon!`;
+    const medal = ['1', '2', '3', '4'];
+    const podOrder = [rows[1], rows[0], rows[2], rows[3]].filter(Boolean);
+    const height = (r) => 60 + 90 * (rows.length - rows.indexOf(r)) / rows.length;
+    el.innerHTML = `<div class="endCard">
+      <h2>${title}</h2><div class="why">${esc(st.endReason || 'Game over')} · ${st.round} rounds played</div>
+      <div class="podium">${podOrder.map((r) => `<div class="pod"><div class="nm">${esc(r.p.name)}</div><small>${MI.RACES[r.p.race].name}</small><div class="sc">${r.total}</div>
+        <div class="blk" style="height:${height(r)}px;background:${MI.COLORS[r.p.color].hex}">${medal[rows.indexOf(r)]}</div></div>`).join('')}</div>
+      <table class="endTable"><tr><th>#</th><th>Race</th><th class="num">Built</th><th class="num">Rooms</th><th class="num">Facilities scoring</th><th class="num">Best</th><th class="num">Score</th></tr>
+      ${rows.map((r, k) => `<tr class="endRow" data-exp="${r.i}" title="Click to see where the points come from"><td>${endOpen.has(r.i) ? '▾' : '▸'} ${k + 1}</td><td><span class="dot" style="background:${MI.COLORS[r.p.color].hex}"></span> ${esc(r.p.name)}</td><td class="num">${r.built}</td><td class="num">${r.rooms}</td><td class="num">${r.scoring}/${r.fac}</td>
+        <td class="num">${r.best && r.best.points ? `${esc(MI.PIECES[r.best.type].name)} ${r.best.points}` : '–'}</td><td class="num"><b>${r.total}</b></td></tr>${endOpen.has(r.i) ? endDetail(r) : ''}`).join('')}</table>
+      <div class="endBtns"><button id="endClose">Look at the moon</button>${st.you <= 0 || (st.players[st.you] && st.players[st.you].local) ? '<button id="endAgain">Play again</button>' : ''}<button id="endLobby" class="primary">Back to lobby</button></div></div>`;
+  }
 
   // ---------- Game ----------
   function render() {
@@ -301,8 +309,8 @@
 
     // me panel
     const pw = st.scores.power[meIdx], myColor = MI.COLORS[me.color].hex;
-    const pct = pw.supply ? Math.min(100, (pw.demand / pw.supply) * 100) : 100;
-    const isHost = st.you <= 0;
+    // the host's screen also runs the turns of local co-op players (st.you is then that player)
+    const isHost = st.you <= 0 || !!(st.players[st.you] && st.players[st.you].local);
     const speeds = [['1×', 600], ['4×', 150], ['15×', 40]];
     const ctrl = isHost && st.status === 'playing' ? `<div class="ctrl">${st.players.some((p) => p.bot) ? '<span class="spdLbl">AI speed</span>' + speeds.map(([l, ms]) => `<button data-speed="${ms}" class="${st.botDelay === ms ? 'on' : ''}" title="How fast the computer players move">${l}</button>`).join('') : ''}</div>` : '';
     // End game lives in the top bar now (host only)
@@ -310,7 +318,6 @@
     if (!eg) { eg = document.createElement('button'); eg.id = 'endGameBtn'; eg.dataset.finish = '1'; eg.textContent = 'End game'; eg.title = 'End the game now and show the scores'; $('viewBtn').before(eg); }
     eg.classList.toggle('hidden', !(isHost && st.status === 'playing'));
     $('mePanel').innerHTML = (spect ? `<div class="spectBar">Watching 4 computers · following <b>${esc(me.name)}</b>${ctrl}</div>` : (ctrl ? `<div class="spectBar">${ctrl}</div>` : ''));
-    const resCount = st.placed.filter((p) => p.owner === meIdx && MI.PIECES[p.type].kind === 'resource').length;
     $('hud').innerHTML = `
       <div class="chip"><span class="ic">${CAP}</span><div><small>Capsules</small><b>${me.capsules}</b></div></div>
       <div class="chip ${pw.demand > pw.supply ? 'warn' : ''}"><span class="ic">ϟ</span><div class="pw2"><small>Power</small>
@@ -350,6 +357,13 @@
       for (const it of items) {
         const t = document.createElement('div');
         t.className = 'tile' + (sel === it.uid ? ' sel' : '');
+        // an opponent's storage and requests are secret: only the face-down puzzle shape
+        if (spect && kind !== 'pad') {
+          t.classList.add('faceDown');
+          const img = document.createElement('img'); img.src = faceDownURL(MI.PIECES[it.type].cells); img.alt = '';
+          t.appendChild(img); t.appendChild(document.createTextNode('Hidden')); t.title = 'Hidden piece';
+          wrap.appendChild(t); continue;
+        }
         const c = document.createElement('canvas'); const dpr = devicePixelRatio || 1;
         c.width = 92 * dpr; c.height = 80 * dpr; c.style.width = '92px'; c.style.height = '80px';
         Render.drawMini(c, it.type, myColor, sel === it.uid ? rot : 0);
@@ -383,6 +397,8 @@
       bin.ondragover = (e) => { e.preventDefault(); bin.classList.add('over'); };
       bin.ondragleave = () => bin.classList.remove('over');
       bin.ondrop = (e) => { e.preventDefault(); bin.classList.remove('over'); document.body.classList.remove('dragScrap'); const uid = +e.dataTransfer.getData('text/mi-uid'); if (uid) send({ t: 'discard', uid }); };
+      bin.title = 'Drag a landed piece here, or select it and click, to scrap it (only if it fits nowhere)';
+      bin.onclick = () => { if (sel) send({ t: 'discard', uid: sel }); };
       pad.insertBefore(bin, pad.firstChild);
     }
     section('Storage ' + me.storage.length + '/' + (me.storageCap || 0), me.storage, 'store');
@@ -438,7 +454,7 @@
       const ordered = [];
       for (const [title, kinds] of GROUPS) {
         ordered.push([title]);
-        for (const [k, d] of Object.entries(MI.PIECES)) if (kinds.includes(d.kind) && k in me.supply) ordered.push([k, d]);
+        for (const [k, d] of Object.entries(MI.PIECES)) if (kinds.includes(d.kind) && k in me.supply && hasRaceResource(d)) ordered.push([k, d]);
       }
       for (const [k, d] of ordered) {
         if (!d) { h += `<div class="mktGroup">${k}</div>`; continue; }
@@ -467,7 +483,7 @@
     $('scorePanel').innerHTML = '<h3>Races</h3>' + order.map((i, rank) => {
       const p = st.players[i], d = st.scores.details[i], c = MI.COLORS[p.color].hex;
       const live = i === st.turn && st.status === 'playing';
-      return `<div class="prow ${live ? 'active' : ''}" data-owner="${i}" style="--pc:${c}">${live ? '<span class="turnMark" title="Their turn"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M7 4l12 8-12 8z" fill="currentColor"/></svg></span>' : '<span class="turnMark idle"></span>'}<img class="rimg" src="${portraitURL(p.race)}" alt=""><span class="pn"><span class="pnTop">${esc(p.name)}<span class="who ${p.bot ? 'bot' : 'human'}">${p.bot ? 'Computer' : i === st.you ? 'You' : 'Player'}</span></span>${i !== st.you && (p.requestShapes || []).length ? '<span class="reqs" title="Requested pieces (face down)">' + p.requestShapes.map((sh) => '<img src="' + faceDownURL(sh) + '" alt="">').join('') + '</span>' : ''}</span><span class="sc">${d.total}</span></div>`;
+      return `<div class="prow ${live ? 'active' : ''}" data-owner="${i}" style="--pc:${c}">${live ? '<span class="turnMark" title="Their turn"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M7 4l12 8-12 8z" fill="currentColor"/></svg></span>' : '<span class="turnMark idle"></span>'}<img class="rimg" src="${portraitURL(p.race)}" alt=""><span class="pn"><span class="pnTop">${esc(p.name)}<span class="who ${p.bot ? 'bot' : 'human'}">${whoLabel(p, i)}</span></span>${i !== st.you && (p.requestShapes || []).length ? '<span class="reqs" title="Requested pieces (face down)">' + p.requestShapes.map((sh) => '<img src="' + faceDownURL(sh) + '" alt="">').join('') + '</span>' : ''}</span><span class="sc">${d.total}</span></div>`;
       // eslint-disable-next-line no-unreachable
       return `<div class="prow ${live ? 'active' : ''}" style="--pc:${c}">
         <span class="rank">${rank + 1}</span>
@@ -486,8 +502,7 @@
     draw();
   }
 
-  function btn(label, fn) { const b = document.createElement('button'); b.textContent = label; b.onclick = (e) => { e.stopPropagation(); fn(); }; return b; }
-
+  // ---------- Piece images (face-down shapes, portraits, 3D snapshots) ----------
   const shapeCache = {};
   function faceDownURL(cells) {
     const key = JSON.stringify(cells);
@@ -524,25 +539,6 @@
     if (!portraitCache[race]) { const cv = document.createElement('canvas'); cv.width = cv.height = 96; try { Portraits.draw(cv, race); } catch (e) { /* ignore */ } portraitCache[race] = cv.toDataURL(); }
     return portraitCache[race];
   }
-  // hovering a race highlights that player's buildings on the moon
-  function scoreExplain(item, d) {
-    const why = { 'no power': 'it has no power (build more power plants)', 'no race resource': 'it needs one of your powered race resources' }[item.reason] || item.reason;
-    if (item.reason) return `<div class="sx bad"><b>★ 0</b> — scores nothing because ${esc(why)}.</div>`;
-    return `<div class="sx"><b>★ ${item.points}</b> = ${d.points} base × (1 + ${item.rooms} guest room${item.rooms === 1 ? '' : 's'})<br><span class="muted">Guest rooms count when they are powered and within 4 hallways${item.rooms ? ' — shown with green lines on the moon' : ''}.</span></div>`;
-  }
-  let rowTip = null;
-  document.addEventListener('mouseover', (e) => {
-    const r = e.target.closest && e.target.closest('#scorePanel .prow');
-    if (window.Render3D && Render3D.highlight) { Render3D.highlight(r ? +r.dataset.owner : null); draw(); }
-    const tip = $('tip');
-    if (r && st) {
-      const i = +r.dataset.owner; if (rowTip === i) return; rowTip = i;
-      const det = st.scores.details[i], pl = st.players[i];
-      const rows = det.items.slice().sort((a, b) => b.points - a.points).map((it) => { const dd = MI.PIECES[it.type]; return `<tr><td>${esc(dd.name)}</td><td class="muted">${it.reason ? esc(it.reason) : dd.points + ' × (1 + ' + it.rooms + ')'}</td><td><b>${it.points}</b></td></tr>`; }).join('');
-      tip.innerHTML = `<b style="color:${MI.COLORS[pl.color].hex}">${esc(pl.name)}</b> — score ${det.total}<br><span class="muted">Only facilities score: base points × (1 + powered guest rooms within 4 hallways).</span>` + (rows ? `<table class="sxt">${rows}</table>` : '<div class="muted">No facilities built yet.</div>');
-      tip.style.right = 'auto'; tip.style.top = 'auto'; tip.style.left = '16px'; tip.style.bottom = '16px'; tip.style.display = 'block'; tipPiece = null;
-    } else if (rowTip !== null) { rowTip = null; tip.style.display = 'none'; }
-  });
   // use the 3D picture of a piece wherever a small piece image is shown (tray, market, tooltips)
   function pieceRace(type) { const d = MI.PIECES[type]; return d.neutral ? 'shared' : (d.race || window.MI_RACE || 'shared'); }
   function draw3DInto(cv, type, r = 0) {
@@ -553,8 +549,45 @@
     const x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height); x.drawImage(snap, 0, 0, cv.width, cv.height);
     return true;
   }
-  const drawMini2D = Render.drawMini;
-  Render.drawMini = (cv, type, color, r) => { draw3DInto(cv, type, r || 0); }; void drawMini2D;
+  // the 3D renderer may not be ready yet (e.g. right after the hot-seat hand-off): try again shortly
+  Render.drawMini = (cv, type, color, r, tries = 0) => {
+    if (!draw3DInto(cv, type, r || 0) && tries < 40) setTimeout(() => { if (cv.isConnected) Render.drawMini(cv, type, color, r, tries + 1); }, 150);
+  };
+
+  // ---------- Hot-seat hand-off ----------
+  // hot seat: when the turn moves to another human on this PC, cover the screen until they are ready
+  let lastHand = null;
+  function handOff() {
+    if (!st || st.status !== 'playing') return;
+    const locals = st.players.filter((p) => p.local).length;
+    if (!locals) return;
+    const cur = st.players[st.turn];
+    if (cur.bot || st.turn !== st.you) return;              // only humans controlled from this device
+    const key = st.code + '|' + st.round + '|' + st.turn;
+    if (lastHand === key || load('mi_hand') === key) { lastHand = key; return; }
+    // wait until the launch intro has finished, so the card doesn't sit on top of it
+    const intro = document.getElementById('launch');
+    if (intro && intro.className) { clearTimeout(handOff.wait); handOff.wait = setTimeout(handOff, 400); return; }
+    lastHand = key;
+    let el = document.getElementById('handOff');
+    if (!el) { el = document.createElement('div'); el.id = 'handOff'; document.body.appendChild(el); }
+    el.style.setProperty('--pc', MI.COLORS[cur.color].hex);
+    el.innerHTML = '<div class="hoCard"><img src="' + portraitURL(cur.race) + '" alt=""><small>Pass the controls to</small><b>' + esc(cur.name) + '</b><span>' + MI.RACES[cur.race].name + '</span><button id="hoReady" class="primary">I am ready</button></div>';
+    el.className = 'show';
+    $('hoReady').onclick = () => { store('mi_hand', key); el.className = ''; };
+  }
+
+  // ---------- Capsule roll effect ----------
+  let lastFx = '';
+  function capsuleFx() {
+    const r = st && st.lastRoll; if (!r || r.player !== st.you || st.phase !== 'order' || st.turn !== st.you) return;
+    const key = 'mi_fx_' + st.code + '_' + st.round + '_' + st.you; if (key === lastFx || load(key)) { lastFx = key; return; } lastFx = key; store(key, '1');
+    const el = document.createElement('div'); el.className = 'capsFx';
+    el.innerHTML = '<div class="cfDie">' + r.roll + '</div><div class="cfGain">+' + r.gain + ' ' + CAP + '</div><div class="cfTxt">capsules received</div>';
+    $('boardWrap').appendChild(el); setTimeout(() => el.remove(), 2600);
+  }
+
+  // ---------- Market (order bar) ----------
   let marketOpen = false, marketCat = 'hallway';
   const MARKET_CATS = [['hallway', 'Hallways', ['hallway', 'deadend']], ['room', 'Rooms', ['room']], ['generator', 'Power', ['generator']], ['resource', 'Race resources', ['resource']], ['facility', 'Facilities', ['facility']], ['storage', 'Storage', ['storage']]];
   // one line that says what makes a market item special
@@ -566,7 +599,7 @@
       case 'room': return 'Guest rooms · multiply nearby facilities';
       case 'generator': return 'Makes <b>+' + d.power + '</b> power';
       case 'resource': return 'Unlocks your race facilities';
-      case 'facility': return '<b>★' + d.points + '</b> × (1 + rooms)' + (d.race ? '<br><span class="needs">Needs your ' + Object.values(MI.PIECES).filter((r) => r.kind === 'resource' && r.race === d.race).map((r) => esc(r.name)).join(' or ') + '</span>' : '');
+      case 'facility': return '<b>★' + d.points + '</b> × rooms' + (d.race ? '<br><span class="needs">Needs your ' + Object.values(MI.PIECES).filter((r) => r.kind === 'resource' && r.race === d.race).map((r) => esc(r.name)).join(' or ') + '</span>' : '');
       case 'storage': return 'Keeps a landed piece for later';
       case 'deadend': return 'Closes off an open exit';
       default: return doors;
@@ -581,14 +614,26 @@
     const bar = document.getElementById('marketBar'); if (bar) bar.remove();
     document.querySelectorAll('.plusTile.open').forEach((t) => t.classList.remove('open'));
   });
+  // race facilities only show once you have built one of your race resources (same rule as the server)
+  function hasRaceResource(d) {
+    if (d.kind !== 'facility' || !d.race) return true;
+    const i = meIdxNow();
+    return st.placed.some((q) => q.owner === i && MI.PIECES[q.type].kind === 'resource' && MI.PIECES[q.type].race === d.race);
+  }
+  // sidebar label: on a shared screen (local co-op) humans are Player 1, Player 2, ... instead of You
+  function whoLabel(p, i) {
+    if (p.bot) return 'Computer';
+    const humans = st.players.filter((q) => !q.bot);
+    if (st.players.some((q) => q.local)) return 'Player ' + (humans.indexOf(p) + 1);
+    return i === st.you ? 'You' : 'Player';
+  }
   function renderMarketBar(open, me) {
     let bar = document.getElementById('marketBar');
     if (!open) { if (bar) bar.remove(); return; }
     if (!bar) { bar = document.createElement('div'); bar.id = 'marketBar'; $('boardWrap').appendChild(bar); }
     const cat = MARKET_CATS.find((c) => c[0] === marketCat) || MARKET_CATS[0];
     // only show what you can buy right now (in stock and affordable)
-    const items = Object.entries(MI.PIECES).filter(([k, d]) => cat[2].includes(d.kind) && me.supply[k] > 0 && me.capsules >= d.cost);
-    const spent = me.orders.reduce((a, o) => a + MI.PIECES[o.type].cost, 0);
+    const items = Object.entries(MI.PIECES).filter(([k, d]) => cat[2].includes(d.kind) && me.supply[k] > 0 && me.capsules >= d.cost && hasRaceResource(d));
     bar.innerHTML = '<div class="mbItems">' + (items.length ? items.map(([k, d]) => {
       const left = me.supply[k], can = left > 0 && me.capsules >= d.cost;
       return '<button class="mbItem' + (can ? '' : ' off') + '" data-order="' + k + '" ' + (can ? '' : 'disabled') + ' title="' + esc(d.name + (MI.FLAVOR[k] ? ' — ' + MI.FLAVOR[k] : '')) + '">'
@@ -604,16 +649,28 @@
     bar.querySelectorAll('canvas[data-mini]').forEach((cv) => Render.drawMini(cv, cv.dataset.mini));
     bar.querySelectorAll('[data-order]').forEach((b) => b.onclick = () => send({ t: 'order', type: b.dataset.order }));
     bar.querySelectorAll('[data-cat]').forEach((b) => b.onclick = () => { marketCat = b.dataset.cat; renderMarketBar(true, me); });
-    void spent;
   }
-  let lastFx = '';
-  function capsuleFx() {
-    const r = st && st.lastRoll; if (!r || r.player !== st.you || st.phase !== 'order' || st.turn !== st.you) return;
-    const key = 'mi_fx_' + st.code + '_' + st.round + '_' + st.you; if (key === lastFx || load(key)) { lastFx = key; return; } lastFx = key; store(key, '1');
-    const el = document.createElement('div'); el.className = 'capsFx';
-    el.innerHTML = '<div class="cfDie">' + r.roll + '</div><div class="cfGain">+' + r.gain + ' ' + CAP + '</div><div class="cfTxt">capsules received</div>';
-    $('boardWrap').appendChild(el); setTimeout(() => el.remove(), 2600);
+
+  // ---------- Tooltips ----------
+  function scoreExplain(item, d) {
+    const why = { 'no power': 'it has no power (build more power plants)', 'no race resource': 'it needs one of your powered race resources' }[item.reason] || item.reason;
+    if (item.reason) return `<div class="sx bad"><b>★ 0</b> — scores nothing because ${esc(why)}.</div>`;
+    return `<div class="sx"><b>★ ${item.points}</b> = ${d.points} × ${item.rooms} guest room${item.rooms === 1 ? '' : 's'}<br><span class="muted">Guest rooms count when they are powered and within 4 hallways${item.rooms ? ' — shown with green lines on the moon' : ''}.</span></div>`;
   }
+  // hovering a race highlights that player's buildings on the moon
+  let rowTip = null;
+  document.addEventListener('mouseover', (e) => {
+    const r = e.target.closest && e.target.closest('#scorePanel .prow');
+    if (window.Render3D && Render3D.highlight) { Render3D.highlight(r ? +r.dataset.owner : null); draw(); }
+    const tip = $('tip');
+    if (r && st) {
+      const i = +r.dataset.owner; if (rowTip === i) return; rowTip = i;
+      const det = st.scores.details[i], pl = st.players[i];
+      const rows = det.items.slice().sort((a, b) => b.points - a.points).map((it) => { const dd = MI.PIECES[it.type]; return `<tr><td>${esc(dd.name)}</td><td class="muted">${it.reason ? esc(it.reason) : dd.points + ' × ' + it.rooms}</td><td><b>${it.points}</b></td></tr>`; }).join('');
+      tip.innerHTML = `<b style="color:${MI.COLORS[pl.color].hex}">${esc(pl.name)}</b> — score ${det.total}<br><span class="muted">Only facilities score: points × powered guest rooms within 4 hallways.</span>` + (rows ? `<table class="sxt">${rows}</table>` : '<div class="muted">No facilities built yet.</div>');
+      tip.style.right = 'auto'; tip.style.top = 'auto'; tip.style.left = '16px'; tip.style.bottom = '16px'; tip.style.display = 'block'; tipPiece = null;
+    } else if (rowTip !== null) { rowTip = null; tip.style.display = 'none'; }
+  });
   // hover Used / Produces: list the buildings behind the number and light them up on the moon
   document.addEventListener('mouseover', (e) => {
     const row = e.target.closest && e.target.closest('.pwRow[data-pw]');
@@ -628,30 +685,9 @@
     let rows = Object.values(groups).sort((a, b) => b.p - a.p).map((g) => '<tr><td>' + esc(g.name) + (g.n > 1 ? ' ×' + g.n : '') + (g.off ? ' <span class="bad">(' + g.off + ' unpowered)</span>' : '') + '</td><td><b>' + (kind === 'used' ? '−' : '+') + g.p + '</b></td></tr>').join('');
     if (kind === 'made' && race.bonusPower) rows += '<tr><td>' + esc(race.ability.split(':')[0]) + ' <span class="muted">(race bonus)</span></td><td><b>+' + race.bonusPower + '</b></td></tr>';
     tip.innerHTML = '<b>' + (kind === 'used' ? 'Power used' : 'Power produced') + '</b>' + (rows ? '<table class="sxt">' + rows + '</table>' : '<div class="muted">Nothing yet.</div>');
-    tip.dataset.pw = kind; void rows; // values are shown on the sticks above the buildings instead of a card
+    tip.dataset.pw = kind; // values are shown on the sticks above the buildings instead of a card
     if (window.Render3D && Render3D.markIds) { const labels = {}; for (const q of list) { const v = MI.PIECES[q.type].power; labels[q.id] = (v > 0 ? '+' : '−') + Math.abs(v); } Render3D.markIds(list.map((q) => q.id), kind === 'used' ? 0xff8a3c : 0x3cf096, labels); draw(); }
   });
-  function meIdxNow() { return st.you >= 0 ? st.you : st.turn; }
-  // capsule icon used everywhere capsules appear
-  const CAP = '<svg class="capIc" viewBox="0 0 24 24" aria-label="capsules"><defs><linearGradient id="capG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b9ffd9"/><stop offset="1" stop-color="#2fd982"/></linearGradient></defs><rect x="7" y="2.5" width="10" height="17" rx="5" fill="url(#capG)" stroke="#0a5c37" stroke-width="1.2"/><circle cx="12" cy="8.5" r="2.3" fill="#0b2a1d" stroke="#e9fff4" stroke-width="1"/><path d="M7 15l-2.5 3.5h4M17 15l2.5 3.5h-4" fill="#2fd982" stroke="#0a5c37" stroke-width="1" stroke-linejoin="round"/><path d="M10 19.5h4l-2 2.5z" fill="#ffd166"/></svg>';
-  // hot seat: when the turn moves to another human on this PC, cover the screen until they are ready
-  let lastHand = null;
-  function handOff() {
-    if (!st || st.status !== 'playing') return;
-    const locals = st.players.filter((p) => p.local).length;
-    if (!locals) return;
-    const cur = st.players[st.turn];
-    if (cur.bot || st.turn !== st.you) return;              // only humans controlled from this device
-    const key = st.code + '|' + st.round + '|' + st.turn;
-    if (lastHand === key || load('mi_hand') === key) { lastHand = key; return; }
-    lastHand = key;
-    let el = document.getElementById('handOff');
-    if (!el) { el = document.createElement('div'); el.id = 'handOff'; document.body.appendChild(el); }
-    el.style.setProperty('--pc', MI.COLORS[cur.color].hex);
-    el.innerHTML = '<div class="hoCard"><img src="' + portraitURL(cur.race) + '" alt=""><small>Pass the controls to</small><b>' + esc(cur.name) + '</b><span>' + MI.RACES[cur.race].name + '</span><button id="hoReady" class="primary">I am ready</button></div>';
-    el.className = 'show';
-    $('hoReady').onclick = () => { store('mi_hand', key); el.className = ''; };
-  }
   function tipFor(el, type) {
     el.onmouseenter = (e) => {
       const d = MI.PIECES[type], tip = $('tip'); tip.style.right = 'auto'; tip.style.bottom = 'auto';
@@ -727,10 +763,12 @@
       showLoader(true);
       geo = geo || { s: 1, ox: 0, oy: 0 };
     } else geo = Render.drawBoard(board, st, g, view);
-    const vb = $('viewBtn'); if (vb) vb.textContent = use3D ? '2D view' : '3D view';
-    const hint = $('hint');
-    hint.className = g && !g.ok ? 'bad' : '';
-    hint.textContent = g ? (g.ok ? `Click to build ${MI.PIECES[g.type].name}` : g.reason) : '';
+    // draw() runs every animation frame: only touch the DOM when something really changes
+    const setText = (el, txt) => { if (el && el.textContent !== txt) el.textContent = txt; };
+    setText($('viewBtn'), use3D ? '2D view' : '3D view');
+    const hint = $('hint'), hc = g && !g.ok ? 'bad' : '';
+    if (hint.className !== hc) hint.className = hc;
+    setText(hint, g ? (g.ok ? `Click to build ${MI.PIECES[g.type].name}` : g.reason) : '');
   }
   document.addEventListener('click', (e) => { if (e.target.id === 'viewBtn') { use3D = !use3D; store('mi_view', use3D ? '3d' : '2d'); draw(); } });
   const cellAt = (e) => {

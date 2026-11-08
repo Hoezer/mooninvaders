@@ -28,5 +28,5 @@ s.placed.push({ id: 4, type: 'room_in', owner: 0, x: 4, y: 5, rot: 0 });
 s.placed.push({ id: 5, type: 'sunny_bar', owner: 0, x: 4, y: 3, rot: 2 });
 s.placed.forEach((p) => delete p.abs);
 const sc = R.computeScores(s);
-assert.strictEqual(sc.details[0].total, 8, JSON.stringify(sc.details[0]));
+assert.strictEqual(sc.details[0].total, 4, JSON.stringify(sc.details[0]));
 console.log('All rules tests passed.');

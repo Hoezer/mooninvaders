@@ -167,7 +167,7 @@
         }
         rooms = roomSet.size;
       }
-      const pts = reason ? 0 : def.points * (1 + rooms); // base points + bonus per nearby Room
+      const pts = reason ? 0 : def.points * rooms; // only nearby powered Rooms score: points per Room
       d.total += pts;
       d.items.push({ id: f.id, type: f.type, rooms, points: pts, reason, base: def.points, roomIds: reason ? [] : [...roomSet] });
     }
