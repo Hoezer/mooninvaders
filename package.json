@@ -1,0 +1,14 @@
+{
+  "name": "moon-invaders",
+  "version": "1.0.0",
+  "description": "Online multiplayer puzzle-piece moon colonization game",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node test/rules.test.js"
+  },
+  "dependencies": {
+    "three": "^0.169.0",
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moon Invaders</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="stars"></canvas>
+
+  <!-- LOBBY -->
+  <section id="lobby" class="screen">
+    <div class="hero">
+      <h1>MOON<span>INVADERS</span></h1>
+      <p class="tag">Four races. One moon. Every piece has to fit.</p>
+    </div>
+    <div id="joinBox" class="card">
+      <label>Your name <input id="name" maxlength="20" placeholder="Commander"></label>
+      <button id="createBtn" class="primary">Create new game</button>
+      <button id="watchBtn">&#128064; Watch 4 computers play</button>
+      <div class="or">or join with a code</div>
+      <div class="row">
+        <input id="codeIn" maxlength="4" placeholder="ABCD">
+        <button id="joinBtn">Join</button>
+      </div>
+    </div>
+    <div id="roomBox" class="card hidden">
+      <div class="roomcode">Room code <b id="roomCode"></b><small>Share this code with your friends</small></div>
+      <h3>Choose your race</h3>
+      <div id="raceList" class="races"></div>
+      <div id="raceProfile"></div>
+      <h3>Choose your colour</h3>
+      <div id="colorList" class="colors"></div>
+      <h3>Players</h3>
+      <ul id="lobbyPlayers"></ul>
+      <button id="botBtn" style="width:100%;margin-bottom:10px">+ Add computer player</button>
+      <button id="startBtn" class="primary">Launch the colonization</button>
+      <p id="waitHost" class="muted">Waiting for the host to start&hellip;</p>
+    </div>
+    <details class="card rules">
+      <summary>How to play</summary>
+      <ol>
+        <li><b>Build</b> every piece that landed on your landing pad. A Small Storage lets you keep one for later.</li>
+        <li><b>Draw capsules</b> &mdash; a random amount each turn.</li>
+        <li><b>Order</b> new pieces with your capsules. They land at the start of your next turn.</li>
+      </ol>
+      <p>Pieces are puzzle pieces. Each side is a <b>wall</b>, an <b>entrance</b> (notch) or an <b>exit</b> (tab).
+        Exit against entrance makes a passage. Two exits can never touch, and an exit can't push into a wall.</p>
+      <p>Hallways must connect to a hallway (any colour). Your buildings may only connect to <b>your own</b> hallways.</p>
+      <p>Buildings need power: Solar Plants and Anti-Matter Labs supply it. Resources and rooms get power first, facilities after.</p>
+      <p><b>Scoring:</b> every powered facility scores its points &times; the number of Rooms within 4 hallways. Race facilities also need one of your powered race resources.</p>
+    </details>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="screen hidden">
+    <header>
+      <div class="logo"><button id="backBtn" title="Back to the lobby (you can return to this game)">← Lobby</button> MOON<span>INVADERS</span></div>
+      <div id="hud"></div>
+      <div id="turnInfo"></div>
+      <button id="viewBtn">2D view</button>
+      <div class="code">Room <b id="gameCode"></b></div>
+    </header>
+    <main>
+      <div id="boardWrap">
+        <canvas id="board"></canvas>
+        <div id="hint"></div>
+        <div id="tray"></div>
+        <div id="endScreen" class="hidden"></div>
+      </div>
+      <aside>
+        <div class="card" id="mePanel"></div>
+        <div class="card" id="actionPanel"></div>
+
+        <div class="card" id="shopPanel"></div>
+        <div class="card" id="scorePanel"></div>
+        <div class="card" id="logPanel"><h3>Mission log</h3><div id="log"></div></div>
+      </aside>
+    </main>
+  </section>
+
+  <div id="toast"></div>
+  <div id="tip"></div>
+
+  <script src="/shared/pieces.js"></script>
+  <script src="/shared/races.js"></script>
+  <script src="/shared/rules.js"></script>
+  <script src="art.js"></script>
+  <script src="render.js"></script>
+  <script src="portraits.js"></script>
+  <script src="client.js"></script>
+  <script type="module" src="render3d.js"></script>
+</body>
+</html>
