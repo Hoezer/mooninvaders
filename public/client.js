@@ -9,7 +9,8 @@
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
   function connect(onOpen) {
-    ws = new WebSocket(window.MI_SERVER || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host));
+    ws = window.MI_SERVER === 'local' && window.LocalSocket ? new window.LocalSocket()
+      : new WebSocket(window.MI_SERVER || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host));
     ws.onopen = onOpen;
     ws.onmessage = (ev) => {
       const m = JSON.parse(ev.data);
