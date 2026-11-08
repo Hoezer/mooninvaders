@@ -58,6 +58,19 @@
     if (t.id === 'endClose') { endClosed = true; $('endScreen').classList.add('hidden'); }
   });
   let endClosed = false;
+  // end screen: click a player to see exactly where the points come from
+  const endOpen = new Set();
+  function endDetail(r) {
+    const items = st.scores.details[r.i].items.slice().sort((a, b) => b.points - a.points);
+    const why = { 'no power': 'no power', 'no race resource': 'missing race resource' };
+    const lines = items.length ? items.map((it) => {
+      const d = MI.PIECES[it.type];
+      const calc = it.reason ? '<span class="bad">0 — ' + esc(why[it.reason] || it.reason) + '</span>' : d.points + ' base × (1 + ' + it.rooms + ' guest room' + (it.rooms === 1 ? '' : 's') + ')';
+      return '<div class="exLine"><span>' + esc(d.name) + '</span><span class="muted">' + calc + '</span><b>' + it.points + '</b></div>';
+    }).join('') : '<div class="muted">No facilities built — only facilities score points.</div>';
+    return '<tr class="endDetail"><td></td><td colspan="6">' + lines + '<div class="exLine total"><span>Total</span><span class="muted">' + items.length + ' facilit' + (items.length === 1 ? 'y' : 'ies') + '</span><b>' + r.total + '</b></div></td></tr>';
+  }
+  document.addEventListener('click', (e) => { const tr = e.target.closest && e.target.closest('.endRow'); if (!tr) return; const i = +tr.dataset.exp; endOpen.has(i) ? endOpen.delete(i) : endOpen.add(i); renderEnd(); });
   function renderEnd() {
     const el = $('endScreen');
     if (st.status !== 'ended') { endClosed = false; el.classList.add('hidden'); return; }
@@ -80,8 +93,8 @@
       <div class="podium">${podOrder.map((r) => `<div class="pod"><div class="nm">${esc(r.p.name)}</div><small>${MI.RACES[r.p.race].name}</small><div class="sc">${r.total}</div>
         <div class="blk" style="height:${height(r)}px;background:${MI.COLORS[r.p.color].hex}">${medal[rows.indexOf(r)]}</div></div>`).join('')}</div>
       <table class="endTable"><tr><th>#</th><th>Race</th><th class="num">Built</th><th class="num">Rooms</th><th class="num">Facilities scoring</th><th class="num">Best</th><th class="num">Score</th></tr>
-      ${rows.map((r, k) => `<tr><td>${k + 1}</td><td><span class="dot" style="background:${MI.COLORS[r.p.color].hex}"></span> ${esc(r.p.name)}</td><td class="num">${r.built}</td><td class="num">${r.rooms}</td><td class="num">${r.scoring}/${r.fac}</td>
-        <td class="num">${r.best && r.best.points ? `${esc(MI.PIECES[r.best.type].name)} ${r.best.points}` : '–'}</td><td class="num"><b>${r.total}</b></td></tr>`).join('')}</table>
+      ${rows.map((r, k) => `<tr class="endRow" data-exp="${r.i}" title="Click to see where the points come from"><td>${endOpen.has(r.i) ? '▾' : '▸'} ${k + 1}</td><td><span class="dot" style="background:${MI.COLORS[r.p.color].hex}"></span> ${esc(r.p.name)}</td><td class="num">${r.built}</td><td class="num">${r.rooms}</td><td class="num">${r.scoring}/${r.fac}</td>
+        <td class="num">${r.best && r.best.points ? `${esc(MI.PIECES[r.best.type].name)} ${r.best.points}` : '–'}</td><td class="num"><b>${r.total}</b></td></tr>${endOpen.has(r.i) ? endDetail(r) : ''}`).join('')}</table>
       <div class="endBtns"><button id="endClose">Look at the moon</button><button id="endNewAi">👀 New AI game</button><button id="endLobby" class="primary">Back to lobby</button></div></div>`;
   }
   $('lobbyPlayers').onclick = (e) => { const b = e.target.closest('[data-kick]'); if (b) send({ t: 'removeBot', idx: +b.dataset.kick }); };

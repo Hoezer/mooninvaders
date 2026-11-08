@@ -6,6 +6,8 @@ const crypto = require('crypto');
 
 const MAX_PLAYERS = 4;
 // Everyone starts from the shared Landing Base in the middle of the moon.
+// computer players are simply called after their race
+const BOT_LABEL = { lustroms: 'Lustroms', humans: 'Humans', machines: 'Machines', bozob: 'boZob' };
 const STARTER = ['hall_corner', 'hall_cross_in', 'solar', 'room_in'];
 
 class Game {
@@ -41,8 +43,8 @@ class Game {
 
   addBot(i) {
     if (i !== 0) throw new Error('Only the host can add computer players');
-    const BOT_NAMES = ['HAL-9', 'Lunatron', 'Crater Bot', 'Moonbeam AI'];
-    const idx = this.join(BOT_NAMES[this.players.length % BOT_NAMES.length]);
+    const race = Object.keys(RACES).find((r) => !this.players.some((p) => p.race === r));
+    const idx = this.join(BOT_LABEL[race] || 'Computer');
     this.players[idx].bot = true;
   }
 
@@ -131,7 +133,7 @@ class Game {
       if (pick) { this.place(i, pick.item.uid, pick.b.sp.x, pick.b.sp.y, pick.b.sp.rot); return true; }
       const item = p.pad[0];
       if (p.storage.length < R.storageCapacity(this, i)) this.store(i, item.uid);
-      else this.discard(i, item.uid);
+      else { p.botWasted = (p.botWasted || 0) + 1; this.discard(i, item.uid); }
       return true;
     }
 
@@ -174,8 +176,12 @@ class Game {
         v = doors < 3 ? 20 : doors < 6 ? 9 : 3;
         if (t === 'hall_cross_out' || t === 'hall_cross_in') v += 2;  // more branches
       } else if (d.kind === 'storage') {
-        v = R.storageCapacity(this, i) === 0 && count('storage') === 0 ? 4 : 0;
+        // a storage saves pieces that don't fit yet instead of throwing them away
+        const have = R.storageCapacity(this, i) + ordered('storage');
+        v = have === 0 ? 10 + Math.min(12, (p.botWasted || 0) * 4) + (RACES[p.race].storagePerUnit > 1 ? 6 : 0) : (p.botWasted || 0) > 3 && have < 2 ? 6 : 0;
       } else v = 0.5;
+      for (const q of this.placed) delete q.abs;
+      if (d.kind !== 'storage' && R.legalSpots(this, i, t, 3).length < 3) v *= 0.5;   // barely fits: risky to order
       v = v / Math.max(1, d.cost) * 2 + v * 0.5;                       // value for money, but big wins still matter
       cands.push({ t, v });
     }
@@ -203,6 +209,7 @@ class Game {
     if (this.status !== 'lobby') throw new Error('Already started');
     if (this.players.length < 2) throw new Error('Need at least 2 players (add a computer player)');
     this.status = 'playing';
+    for (const p of this.players) if (p.bot && BOT_LABEL[p.race]) p.name = BOT_LABEL[p.race];
     this.placed.push({ id: this.nextId++, type: 'landing', owner: -1, x: this.w / 2 - 1, y: this.h / 2 - 1, rot: 0 });
     this.players.forEach((p) => {
       for (const [t, d] of Object.entries(PIECES)) if (!d.neutral && (!d.race || d.race === p.race)) p.supply[t] = d.count;
