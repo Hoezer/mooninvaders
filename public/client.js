@@ -160,9 +160,19 @@
     // big profile of the selected race (or the watch-mode explanation)
     if (!me.race) {
       $('raceProfile').style.setProperty('--rc', '#3cf096');
-      $('raceProfile').innerHTML = '<div class="prof watchProf"><div class="profTxt"><small>WATCH MODE</small><h2>AI game</h2><div class="profTitle">You watch, the computers play</div>'
-        + '<p>Choose under <b>Who plays?</b> which races join as a computer (at least 2), then press start. You follow every move live, can speed the game up and end it early.</p>'
-        + '<p class="muted">Want to play yourself after all? Click one of the race cards.</p></div></div>';
+      const bots = st.players.filter((p) => p.bot);
+      $('raceProfile').innerHTML = '<div class="prof"><canvas width="520" height="520"></canvas>'
+        + '<div class="profTxt"><small>MODE</small><h2>AI Game</h2><div class="profTitle">Mission control · computers only</div>'
+        + '<blockquote>“Sit back, Commander. Let the races fight it out.”</blockquote>'
+        + '<div class="chips"><span>Spectator</span><span>2 to 4 races</span><span>Live 3D</span><span>Speed control</span></div>'
+        + '<p>Every race you add below is played by the computer. They build, order and compete for points on their own, while you follow every move from above. A great way to learn how the races play and which strategies score.</p>'
+        + '<div class="profGrid"><div><small>WHO PLAYS</small>The races you add as computer under <b>Who plays?</b> (at least 2).</div><div><small>STARTING PLAYER</small>Picked at random in the launch roulette.</div>'
+        + '<div><small>SPEED</small>1×, 4× or 15× during the game.</div><div><small>END</small>Wait for the finish or end it early, then open each player\'s score.</div></div>'
+        + '<div class="profPlay"><small>TIP</small>Hover a race in the scoreboard to light up its buildings, and hover a building to see where its points come from.</div>'
+        + '<div class="profRooms"><small>IN THIS GAME</small>' + (bots.length ? bots.map((p) => '<span>' + esc(p.name) + '</span>').join('') : '<span>No computer races yet</span>') + '</div></div></div>';
+      const pc = $('raceProfile').querySelector('canvas'), px = pc.getContext('2d');
+      px.fillStyle = '#05070d'; px.fillRect(0, 0, 520, 520);
+      Object.keys(MI.RACES).forEach((k, n) => { const t = document.createElement('canvas'); t.width = t.height = 260; Portraits.draw(t, k); px.drawImage(t, (n % 2) * 260, Math.floor(n / 2) * 260, 260, 260); });
     } else {
     const R = MI.RACES[me.race];
     const own = Object.values(MI.PIECES).filter((p) => p.race === me.race);
