@@ -5,7 +5,8 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "test": "node test/rules.test.js"
+    "test": "node test/rules.test.js",
+    "build:web": "node scripts/build-web.js"
   },
   "dependencies": {
     "three": "^0.169.0",
