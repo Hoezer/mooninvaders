@@ -43,7 +43,8 @@
   $('joinBtn').onclick = () => connect(() => send({ t: 'join', code: $('codeIn').value.trim(), name: name() }));
   $('startBtn').onclick = () => send({ t: 'start' });
   $('botBtn').onclick = () => send({ t: 'addBot' });
-  const watchAi = () => { store('mi_session', null); if (ws) { ws.onclose = null; ws.close(); } connect(() => send({ t: 'create', spectate: true })); };
+  // AI game: open a room in watch mode with all 4 races as computers; you can still change them, then press start
+  const watchAi = () => { store('mi_session', null); if (ws) { ws.onclose = null; ws.close(); } connect(() => { send({ t: 'create', name: name() }); send({ t: 'watch', on: true }); for (const r of Object.keys(MI.RACES)) send({ t: 'addBot', race: r }); }); };
   $('watchBtn').onclick = watchAi;
   // after going back to the lobby you can jump straight back into your game
   try { const last = JSON.parse(load('mi_last') || 'null'); if (last && !load('mi_session')) { const b = document.createElement('button'); b.id = 'resumeBtn'; b.className = 'primary'; b.textContent = '↩ Back to game ' + last.code; $('joinBox').prepend(b); } } catch (e) { /* ignore */ }
