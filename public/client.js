@@ -467,27 +467,28 @@
     return true;
   }
   window.addEventListener('render3d-ready', () => { draw(); if (st && st.status !== 'lobby') render(); });
+  function showLoader(on) {
+    let el = document.getElementById('loader');
+    if (!el && on) {
+      el = document.createElement('div'); el.id = 'loader';
+      el.innerHTML = '<div class="ldMoon"><div class="ldOrbit"><i></i></div></div><div class="ldTxt">Approaching the moon</div><div class="ldSub">Preparing the landing site</div>';
+      $('boardWrap').appendChild(el);
+    }
+    if (el) el.classList.toggle('hide', !on);
+  }
   function draw() {
     if (!st || st.status === 'lobby') return;
     st.placed.forEach((p) => delete p.abs);
     const g = ghostInfo();
     if (ensure3D()) {
+      showLoader(false);
       const ctx = board.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, board.width, board.height);
       Render3D.update(st, g);
       geo = geo || { s: 1, ox: 0, oy: 0 };
     } else if (!window.Render3D) {
-      // 3D engine still loading: show a clean loading screen instead of the 2D moon
-      const ctx = board.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0);
-      const w = board.width, h = board.height, t = performance.now() / 1000;
-      ctx.fillStyle = '#05080a'; ctx.fillRect(0, 0, w, h);
-      ctx.save(); ctx.translate(w / 2, h / 2);
-      ctx.strokeStyle = 'rgba(60,240,150,0.15)'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(0, 0, 46, 0, 7); ctx.stroke();
-      ctx.strokeStyle = '#3cf096'; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.arc(0, 0, 46, t * 4, t * 4 + 1.6); ctx.stroke();
-      ctx.fillStyle = '#cfe9dc'; ctx.font = '600 15px Orbitron, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('APPROACHING THE MOON', 0, 86);
-      ctx.restore();
+      // 3D engine still loading: a styled loading screen on top of the board
+      const ctx = board.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, board.width, board.height);
+      showLoader(true);
       geo = geo || { s: 1, ox: 0, oy: 0 };
     } else geo = Render.drawBoard(board, st, g, view);
     const vb = $('viewBtn'); if (vb) vb.textContent = use3D ? '2D view' : '3D view';

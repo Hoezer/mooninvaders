@@ -402,3 +402,20 @@ body.inRoom .roomcode b { font-size: 26px; }
 #startBtn:disabled { background: rgba(255,255,255,.06); color: var(--muted); border-color: rgba(255,255,255,.12); box-shadow: none; animation: none; letter-spacing: .08em; }
 @keyframes startShine { 0%, 100% { background-position: 100% 0; } 50% { background-position: 0 0; } }
 .lobbyGrid #raceProfile .prof.watchProf { grid-template-columns: 1fr; }
+
+/* ---- loading screen while the 3D view starts ---- */
+#loader { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: radial-gradient(circle at 50% 45%, rgba(14,40,28,.9), #03060a 70%); transition: opacity .6s; }
+#loader.hide { opacity: 0; pointer-events: none; }
+#loader .ldMoon { position: relative; width: 150px; height: 150px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e9e7e1, #b8b4ab 45%, #6f6b64 80%, #3c3a36);
+  box-shadow: inset -18px -14px 40px rgba(0,0,0,.55), 0 0 60px rgba(60,240,150,.18); }
+#loader .ldMoon::before { content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at 30% 60%, rgba(0,0,0,.18) 0 9%, transparent 10%), radial-gradient(circle at 62% 38%, rgba(0,0,0,.15) 0 7%, transparent 8%), radial-gradient(circle at 58% 72%, rgba(0,0,0,.14) 0 5%, transparent 6%), radial-gradient(circle at 42% 25%, rgba(0,0,0,.12) 0 4%, transparent 5%); }
+#loader .ldOrbit { position: absolute; inset: -26px; border-radius: 50%; border: 1px dashed rgba(60,240,150,.35); transform: rotateX(68deg); animation: ldSpin 2.4s linear infinite; }
+#loader .ldOrbit i { position: absolute; top: -5px; left: calc(50% - 5px); width: 10px; height: 10px; border-radius: 50%; background: #3cf096; box-shadow: 0 0 14px #3cf096, 0 0 30px #3cf096; }
+#loader .ldTxt { font-family: Orbitron; font-size: 18px; letter-spacing: .35em; text-transform: uppercase; color: #dff7ea; }
+#loader .ldTxt::after { content: '...'; display: inline-block; width: 1.6em; text-align: left; animation: ldDots 1.4s steps(4) infinite; overflow: hidden; vertical-align: bottom; }
+#loader .ldSub { font-size: 12px; color: #7f9a8d; letter-spacing: .12em; }
+@keyframes ldSpin { to { transform: rotateX(68deg) rotate(360deg); } }
+@keyframes ldDots { 0% { width: 0; } 100% { width: 1.6em; } }
