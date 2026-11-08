@@ -99,18 +99,31 @@
   }
   $('slots').onclick = (e) => { const k = e.target.closest('[data-kick]'), a = e.target.closest('[data-addbot]'); if (k) send({ t: 'removeBot', idx: +k.dataset.kick }); if (a) send({ t: 'addBot', race: a.dataset.addbot }); };
 
+  // leaving a room with friends in it for an AI game: only after a check
+  const confirmLeave = () => !st || st.players.filter((p) => !p.bot).length <= 1 || window.confirm('Leave this room and start an AI game?');
   function renderLobby() {
     $('joinBox').classList.add('hidden'); $('roomBox').classList.remove('hidden');
     document.body.classList.add('inRoom');
     $('roomCode').textContent = st.code;
     const me = st.players[st.you];
     $('raceList').innerHTML = '';
+    // extra tile: watch a game played by 4 computers
+    {
+      const d = document.createElement('div');
+      d.className = 'race aiTile'; d.style.setProperty('--rc', '#3cf096');
+      d.innerHTML = '<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">👀 WATCH</span><b>AI GAME</b><i>4 COMPUTERS</i><p>Sit back and watch all four races fight for the moon.</p><span class="rcAb">Starts a new game with 4 computer players.</span></div>';
+      const cv = d.querySelector('canvas'), x = cv.getContext('2d');
+      x.fillStyle = '#05070d'; x.fillRect(0, 0, 360, 360);
+      Object.keys(MI.RACES).forEach((k, n) => { const t = document.createElement('canvas'); t.width = t.height = 180; Portraits.draw(t, k); x.drawImage(t, (n % 2) * 180, Math.floor(n / 2) * 180, 180, 180); });
+      d.onclick = () => { if (confirmLeave()) watchAi(); };
+      $('raceList').appendChild(d);
+    }
     for (const [k, r] of Object.entries(MI.RACES)) {
       const takenBy = st.players.find((p, i) => p.race === k && i !== st.you);
       const d = document.createElement('div');
       d.className = 'race' + (me.race === k ? ' sel' : '') + (takenBy ? ' taken' : '');
       d.style.setProperty('--rc', Portraits.ACC[k]);
-      d.innerHTML = `<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">${me.race === k ? '✔ YOUR RACE' : takenBy ? (takenBy.bot ? '🤖 COMPUTER' : '👤 ' + esc(takenBy.name)) : 'CLICK TO PLAY'}</span>
+      d.innerHTML = `<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">${me.race === k ? '✔ YOUR RACE' : takenBy ? (takenBy.bot ? '🤖 COMPUTER' : '👤 ' + esc(takenBy.name)) : 'PLAY'}</span>
         <b>${r.name.split(' ').pop()}</b><i>${r.name.split(' ')[0]}</i><p>${r.blurb}</p><span class="rcAb">${r.ability}</span></div>`;
       Portraits.draw(d.querySelector('canvas'), k);
       if (!takenBy) d.onclick = () => send({ t: 'pick', race: k });

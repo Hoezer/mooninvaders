@@ -343,3 +343,8 @@ body.inRoom .roomcode b { font-size: 26px; }
 .lobbyGrid #raceProfile .prof blockquote { font-size: 13px; padding: 6px 10px; margin-bottom: 8px; }
 .lobbyGrid #raceProfile .profGrid { gap: 6px; font-size: 12px; }
 .lobbyGrid #raceProfile .profPlay, .lobbyGrid #raceProfile .profRooms { font-size: 12px; margin-top: 6px; }
+/* AI game tile next to the race cards */
+.lobbyLeft .races { grid-template-columns: repeat(5, 1fr); }
+.race.aiTile { border-color: rgba(60,240,150,.45); }
+.race.aiTile canvas { filter: saturate(.85) brightness(.85); }
+.race.aiTile:hover { border-color: #3cf096; box-shadow: 0 0 24px rgba(60,240,150,.35); }
