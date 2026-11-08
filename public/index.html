@@ -42,16 +42,52 @@
     </div>
     <details class="card rules">
       <summary>How to play</summary>
+
+      <h4>Goal</h4>
+      <p>Four races colonize the moon from one shared <b>Landing Base</b> in the middle. Build the base with the most points when nobody can build any more.</p>
+
+      <h4>Your turn</h4>
       <ol>
-        <li><b>Build</b> every piece that landed on your landing pad. A Small Storage lets you keep one for later.</li>
-        <li><b>Draw capsules</b> &mdash; a random amount each turn.</li>
-        <li><b>Order</b> new pieces with your capsules. They land at the start of your next turn.</li>
+        <li><b>Build</b> every piece on your <b>Landing pad</b>. A piece that doesn't fit yet can go into <b>Storage</b> (build a Small Storage first) &mdash; otherwise you have to scrap it.</li>
+        <li><b>Draw capsules</b> &mdash; a random amount each turn (Humans get +1).</li>
+        <li><b>Order</b> new pieces in the market. They show up under <b>Requests</b> and land on your pad at the start of your next turn.</li>
       </ol>
-      <p>Pieces are puzzle pieces. Each side is a <b>wall</b>, an <b>entrance</b> (notch) or an <b>exit</b> (tab).
-        Exit against entrance makes a passage. Two exits can never touch, and an exit can't push into a wall.</p>
-      <p>Hallways must connect to a hallway (any colour). Your buildings may only connect to <b>your own</b> hallways.</p>
-      <p>Buildings need power: Solar Plants and Anti-Matter Labs supply it. Resources and rooms get power first, facilities after.</p>
-      <p><b>Scoring:</b> every powered facility scores its points &times; the number of Rooms within 4 hallways. Race facilities also need one of your powered race resources.</p>
+
+      <h4>Puzzle pieces</h4>
+      <p>Every side of a piece is a <b>wall</b>, an <b>exit</b> (a docking port that sticks out) or an <b>entrance</b> (a docking hatch).
+        An exit against an entrance opens a <b>passage</b> you can walk through. Two exits can never touch, an exit can't push into a wall, and an exit can't point off the moon.
+        While placing, a green <b>✓</b> or red <b>✕</b> shows on every side that touches something.</p>
+      <p><b>Hallways</b> must connect to a hallway (any player's). All your other buildings may only connect to <b>your own</b> hallways.</p>
+
+      <h4>Power</h4>
+      <p>Solar Plants and Anti-Matter Labs make power; most other buildings use it. Resources, rooms and storage get power first, then facilities &mdash; highest points first. A facility without power scores nothing.</p>
+
+      <h4>Scoring</h4>
+      <p>Only <b>facilities</b> score: <b>base points &times; (1 + powered guest rooms within 4 hallways)</b>. Guest rooms may belong to anyone.
+        Your own race's facilities also need one of your powered <b>race resources</b>.
+        Example: a Star Meal (5) with 3 guest rooms nearby scores 5 &times; 4 = <b>20</b>.</p>
+      <p>The yellow badge above a facility shows what it scores right now. Hover a building to see the calculation and green lines to the guest rooms that count; hover a player in <b>Races</b> for their full list.</p>
+
+      <h4>Races</h4>
+      <ul>
+        <li><b>Lustroms</b> &mdash; Inner Glow: +30 power at all times.</li>
+        <li><b>Humans</b> &mdash; Research Grants: +1 capsule every turn.</li>
+        <li><b>Machines</b> &mdash; Compression: every Small Storage holds 2 pieces, plus +15 power.</li>
+        <li><b>boZob</b> &mdash; Slime Battery: +10 power at all times.</li>
+      </ul>
+
+      <h4>Game end</h4>
+      <p>The game ends when three rounds pass without anyone building, when the moon is full, or when all pieces are used. Click a player on the end screen to see where every point came from.</p>
+
+      <h4>Controls</h4>
+      <ul>
+        <li><b>Scroll</b> zoom &middot; <b>drag</b> move &middot; <b>double-click</b> reset view</li>
+        <li><b>R</b>, <b>arrows</b>, <b>WASD</b> or <b>right-click</b> rotate the piece</li>
+        <li><b>Q / E</b> or <b>middle-drag</b> turn the camera (3D) &middot; <b>2D / 3D</b> button switches view</li>
+        <li><b>← Lobby</b> leaves the game; you can jump back in from the lobby.</li>
+      </ul>
+      <p class="muted">Other players' requests are shown face down in <b>Races</b>: you see the puzzle shape, not the building.
+        On the website without a game server you can play against computers or watch them; online play against people needs the game server.</p>
     </details>
   </section>
 

@@ -298,3 +298,6 @@ aside h3::after { content: ''; flex: 1; height: 1px; background: linear-gradient
 .endTable .exLine b { text-align: right; color: #ffd166; }
 .endTable .exLine .bad { color: #ff6b6b; }
 .endTable .exLine.total { border-bottom: none; font-weight: 700; }
+.rules h4 { margin: 14px 0 4px; font-family: Orbitron; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #3cf096; }
+.rules p, .rules li { font-size: 13px; line-height: 1.5; }
+.rules ul, .rules ol { margin: 4px 0; padding-left: 20px; }
