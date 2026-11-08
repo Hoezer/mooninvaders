@@ -97,10 +97,11 @@
         <td class="num">${r.best && r.best.points ? `${esc(MI.PIECES[r.best.type].name)} ${r.best.points}` : '–'}</td><td class="num"><b>${r.total}</b></td></tr>${endOpen.has(r.i) ? endDetail(r) : ''}`).join('')}</table>
       <div class="endBtns"><button id="endClose">Look at the moon</button><button id="endNewAi">👀 New AI game</button><button id="endLobby" class="primary">Back to lobby</button></div></div>`;
   }
-  $('lobbyPlayers').onclick = (e) => { const b = e.target.closest('[data-kick]'); if (b) send({ t: 'removeBot', idx: +b.dataset.kick }); };
+  $('slots').onclick = (e) => { const k = e.target.closest('[data-kick]'), a = e.target.closest('[data-addbot]'); if (k) send({ t: 'removeBot', idx: +k.dataset.kick }); if (a) send({ t: 'addBot', race: a.dataset.addbot }); };
 
   function renderLobby() {
     $('joinBox').classList.add('hidden'); $('roomBox').classList.remove('hidden');
+    document.body.classList.add('inRoom');
     $('roomCode').textContent = st.code;
     const me = st.players[st.you];
     $('raceList').innerHTML = '';
@@ -109,7 +110,7 @@
       const d = document.createElement('div');
       d.className = 'race' + (me.race === k ? ' sel' : '') + (takenBy ? ' taken' : '');
       d.style.setProperty('--rc', Portraits.ACC[k]);
-      d.innerHTML = `<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">${me.race === k ? '✔ YOUR RACE' : takenBy ? 'TAKEN · ' + esc(takenBy.name) : 'SELECT'}</span>
+      d.innerHTML = `<canvas width="360" height="360"></canvas><div class="rcBody"><span class="rcTag">${me.race === k ? '✔ YOUR RACE' : takenBy ? (takenBy.bot ? '🤖 COMPUTER' : '👤 ' + esc(takenBy.name)) : 'CLICK TO PLAY'}</span>
         <b>${r.name.split(' ').pop()}</b><i>${r.name.split(' ')[0]}</i><p>${r.blurb}</p><span class="rcAb">${r.ability}</span></div>`;
       Portraits.draw(d.querySelector('canvas'), k);
       if (!takenBy) d.onclick = () => send({ t: 'pick', race: k });
@@ -140,10 +141,18 @@
     }
     $('lobbyPlayers').innerHTML = st.players.map((p, i) =>
       `<li><span class="dot" style="background:${MI.COLORS[p.color].hex}"></span>${esc(p.name)}${i === 0 ? ' — host' : ''}${p.bot ? ' 🤖' : ''}<span class="muted">&nbsp;${MI.RACES[p.race].name}</span>${p.bot && st.you === 0 ? ` <button data-kick="${i}" style="margin-left:auto;padding:2px 8px">✕</button>` : ''}</li>`).join('');
-    $('botBtn').classList.toggle('hidden', st.you !== 0 || st.players.length >= 4);
+    // step 3: one slot per race
+    const host = st.you === 0;
+    $('slots').innerHTML = Object.entries(MI.RACES).map(([k, r]) => {
+      const i = st.players.findIndex((p) => p.race === k), p = st.players[i];
+      const who = !p ? '<span class="open">Open</span>' : i === st.you ? '<b>You</b>' : p.bot ? '<b>🤖 Computer</b>' : '<b>👤 ' + esc(p.name) + '</b>';
+      const act = !host ? '' : !p ? '<button data-addbot="' + k + '">+ Computer</button>' : p.bot ? '<button data-kick="' + i + '" class="ghost">Remove</button>' : '';
+      return '<div class="slot' + (p ? ' filled' : '') + '" style="--rc:' + Portraits.ACC[k] + (p ? ';--pc:' + MI.COLORS[p.color].hex : '') + '"><img src="' + portraitURL(k) + '" alt=""><div><span class="rn">' + r.name.split(' ').pop() + '</span>' + who + '</div>' + act + '</div>';
+    }).join('');
+    $('botBtn').classList.add('hidden');
     $('startBtn').classList.toggle('hidden', st.you !== 0);
     $('startBtn').disabled = st.players.length < 2;
-    $('startBtn').textContent = st.players.length < 2 ? 'Add a computer or wait for a friend' : 'Launch the colonization';
+    $('startBtn').textContent = st.players.length < 2 ? 'Add a computer or wait for a friend' : '🚀 Launch the colonization · ' + st.players.length + ' races';
     $('waitHost').classList.toggle('hidden', st.you === 0);
   }
 

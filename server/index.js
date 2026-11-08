@@ -95,7 +95,7 @@ wss.on('connection', (ws) => {
       switch (m.t) {
         case 'pick': game.pick(idx, m.race, m.color); break;
         case 'start': game.start(idx); break;
-        case 'addBot': game.addBot(idx); break;
+        case 'addBot': game.addBot(idx, m.race); break;
         case 'finishNow':
           if (idx > 0) throw new Error('Only the host can end the game');
           if (game.status !== 'playing') throw new Error('Game is not running');

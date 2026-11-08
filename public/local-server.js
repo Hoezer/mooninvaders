@@ -68,7 +68,7 @@
         switch (m.t) {
           case 'pick': g.pick(idx, m.race, m.color); break;
           case 'start': g.start(idx); break;
-          case 'addBot': g.addBot(idx); break;
+          case 'addBot': g.addBot(idx, m.race); break;
           case 'finishNow': if (idx > 0) throw new Error('Only the host can end the game'); g.finish('Ended early by the host.'); break;
           case 'speed': if (idx > 0) throw new Error('Only the host can change the speed'); g.botDelay = Math.max(40, Math.min(2000, m.ms | 0)); break;
           case 'removeBot': g.removeBot(idx, m.idx | 0); break;

@@ -7,6 +7,8 @@ const crypto = require('crypto');
 const MAX_PLAYERS = 4;
 // Everyone starts from the shared Landing Base in the middle of the moon.
 // computer players are simply called after their race
+// every race has a fixed colour
+const RACE_COLOR = { lustroms: 'blue', humans: 'lilac', machines: 'orange', bozob: 'purple' };
 const BOT_LABEL = { lustroms: 'Lustroms', humans: 'Humans', machines: 'Machines', bozob: 'boZob' };
 const STARTER = ['hall_corner', 'hall_cross_in', 'solar', 'room_in'];
 
@@ -30,7 +32,7 @@ class Game {
     if (this.status !== 'lobby') throw new Error('Game already started');
     if (this.players.length >= MAX_PLAYERS) throw new Error('Room is full');
     const race = Object.keys(RACES).find((r) => !this.players.some((p) => p.race === r));
-    const color = Object.keys(COLORS).find((c) => !this.players.some((p) => p.color === c));
+    const color = RACE_COLOR[race] || Object.keys(COLORS).find((c) => !this.players.some((p) => p.color === c));
     const p = {
       token: crypto.randomBytes(12).toString('hex'),
       name: String(name || 'Player').slice(0, 20), race, color,
@@ -41,10 +43,13 @@ class Game {
     return this.players.length - 1;
   }
 
-  addBot(i) {
+  addBot(i, wanted) {
     if (i !== 0) throw new Error('Only the host can add computer players');
-    const race = Object.keys(RACES).find((r) => !this.players.some((p) => p.race === r));
+    if (wanted && this.players.some((p) => p.race === wanted)) throw new Error('That race is already playing');
+    const race = wanted && RACES[wanted] ? wanted : Object.keys(RACES).find((r) => !this.players.some((p) => p.race === r));
     const idx = this.join(BOT_LABEL[race] || 'Computer');
+    this.players[idx].race = race; this.players[idx].color = RACE_COLOR[race] || this.players[idx].color;
+    this.players[idx].name = BOT_LABEL[race] || 'Computer';
     this.players[idx].bot = true;
   }
 
@@ -196,7 +201,7 @@ class Game {
     const p = this.players[i];
     if (race && RACES[race]) {
       if (this.players.some((q, j) => j !== i && q.race === race)) throw new Error('Race already taken');
-      p.race = race;
+      p.race = race; if (RACE_COLOR[race]) p.color = RACE_COLOR[race];
     }
     if (color && COLORS[color]) {
       if (this.players.some((q, j) => j !== i && q.color === color)) throw new Error('Colour already taken');

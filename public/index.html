@@ -29,15 +29,20 @@
     </div>
     <div id="roomBox" class="card hidden">
       <div class="roomcode">Room code <b id="roomCode"></b><small>Share this code with your friends</small></div>
-      <h3>Choose your race</h3>
+      <div class="lobbyGrid">
+        <div class="lobbyLeft">
+      <h3 class="step"><span>1</span> Choose your race</h3>
       <div id="raceList" class="races"></div>
-      <div id="raceProfile"></div>
-      <h3>Choose your colour</h3>
-      <div id="colorList" class="colors"></div>
-      <h3>Players</h3>
-      <ul id="lobbyPlayers"></ul>
-      <button id="botBtn" style="width:100%;margin-bottom:10px">+ Add computer player</button>
+      <div id="colorList" class="hidden"></div>
+      <h3 class="step"><span>2</span> Who plays?</h3>
+      <p class="muted stepHint">Every race can be played once. Add a race as a computer, or leave it open for a friend with the room code.</p>
+      <div id="slots" class="slots"></div>
+      <ul id="lobbyPlayers" class="hidden"></ul>
+      <button id="botBtn" class="hidden">+ Add computer player</button>
       <button id="startBtn" class="primary">Launch the colonization</button>
+        </div>
+      <div id="raceProfile"></div>
+      </div>
       <p id="waitHost" class="muted">Waiting for the host to start&hellip;</p>
     </div>
     <details class="card rules">

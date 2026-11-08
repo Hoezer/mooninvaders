@@ -301,3 +301,45 @@ aside h3::after { content: ''; flex: 1; height: 1px; background: linear-gradient
 .rules h4 { margin: 14px 0 4px; font-family: Orbitron; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #3cf096; }
 .rules p, .rules li { font-size: 13px; line-height: 1.5; }
 .rules ul, .rules ol { margin: 4px 0; padding-left: 20px; }
+/* lobby: numbered steps + one slot per race */
+#roomBox h3.step { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+#roomBox h3.step span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #3cf096; color: #04130c; font-size: 12px; }
+#roomBox .stepHint { margin: -4px 0 10px; font-size: 12px; }
+.slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+.slot { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; border: 1px dashed rgba(255,255,255,.18); background: rgba(255,255,255,.02); }
+.slot.filled { border-style: solid; border-color: color-mix(in srgb, var(--pc, var(--rc)) 70%, transparent); background: color-mix(in srgb, var(--pc, var(--rc)) 10%, transparent); }
+.slot img { width: 46px; height: 46px; border-radius: 10px; border: 2px solid var(--rc); flex: none; }
+.slot > div { flex: 1; display: flex; flex-direction: column; font-size: 13px; }
+.slot .rn { font-family: Orbitron; font-size: 14px; color: var(--rc); }
+.slot .open { color: var(--muted); }
+.slot button { padding: 6px 12px; font-size: 12px; }
+.slot button.ghost { background: transparent; }
+.race.taken { opacity: .55; }
+@media (max-width: 640px) { .slots { grid-template-columns: 1fr; } }
+
+/* ---- room lobby fits on one screen (no scrolling) ---- */
+body.inRoom #lobby { max-width: 1500px; padding: 12px 20px; gap: 8px; }
+body.inRoom .hero h1 { font-size: 30px; text-shadow: none; }
+body.inRoom .hero p, body.inRoom .hero .tag, body.inRoom .hero small { display: none; }
+body.inRoom details.rules { display: none; }
+body.inRoom #roomBox { padding: 12px 18px; }
+body.inRoom .roomcode { display: flex; align-items: baseline; justify-content: center; gap: 12px; margin: 0; }
+body.inRoom .roomcode b { font-size: 26px; }
+.lobbyGrid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 1000px) { .lobbyGrid { grid-template-columns: 1fr; } }
+.lobbyLeft h3.step { margin: 10px 0 6px !important; }
+.lobbyLeft .races { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.lobbyLeft .race canvas { aspect-ratio: 1 / .78; object-fit: cover; }
+.lobbyLeft .race .rcBody { padding: 6px 8px 8px; }
+.lobbyLeft .race .rcBody p, .lobbyLeft .race .rcBody .rcAb { display: none; }
+.lobbyLeft .race .rcBody b { font-size: 16px; }
+.lobbyLeft .slots { gap: 8px; margin-bottom: 10px; }
+.lobbyLeft .slot { padding: 6px 10px; }
+.lobbyLeft .slot img { width: 38px; height: 38px; }
+.lobbyLeft #startBtn { width: 100%; padding: 12px; font-size: 14px; }
+.lobbyGrid #raceProfile .prof { grid-template-columns: 150px 1fr; gap: 14px; padding: 14px; }
+.lobbyGrid #raceProfile .prof h2 { font-size: 20px; margin: 2px 0; }
+.lobbyGrid #raceProfile .prof p { font-size: 12px; margin: 6px 0; }
+.lobbyGrid #raceProfile .prof blockquote { font-size: 13px; padding: 6px 10px; margin-bottom: 8px; }
+.lobbyGrid #raceProfile .profGrid { gap: 6px; font-size: 12px; }
+.lobbyGrid #raceProfile .profPlay, .lobbyGrid #raceProfile .profRooms { font-size: 12px; margin-top: 6px; }
